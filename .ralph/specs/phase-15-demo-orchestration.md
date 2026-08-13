@@ -144,7 +144,7 @@ The checks, in this order:
 | `tunnel` | `PUBLIC_BASE_URL` is set and https, and `POST <PUBLIC_BASE_URL>/api/tools/log_timeline` returns 200 with the correct `X-BlackBox-Secret` **and** 401 without it | FAIL |
 | `pitch-number` | `data/pitch-numbers.json` exists, parses, and carries the 15.0% figure and the 5,653,498 denominator | FAIL |
 | `worker-mode` | `TRIGGER_MODE` is `changestream` or `poll`, and the `_watch_state` collection has at least one document | WARN |
-| `fake-ports` | No `*_MODE` env var equals `fake`, and resolving all six ports through `@/lib/registry` logs no `FAKE PORT` warning | FAIL |
+| `fake-ports` | No `*_MODE` env var equals `fake`, and resolving every port through `@/lib/registry` logs no `FAKE PORT` warning | FAIL |
 | `audio-levels` | Cannot be automated | SKIP (manual) |
 | `window-layout` | Cannot be automated | SKIP (manual) |
 
@@ -162,7 +162,7 @@ Details that are not obvious and will cost time if guessed:
 
 **`worker-mode` is a WARN because the contract does not guarantee a heartbeat.** `WATCH_STATE` exists in `contracts.md` §2 so the worker can persist a resume token or poll cursor, but nothing specifies an update cadence, so a script cannot honestly assert the worker is alive. Report the collection's presence and the most recent timestamp field if one exists, warn when it is absent or older than 120 seconds, and put the reliable version in `docs/preflight.md` as a manual step: look at the worker terminal and confirm it printed its trigger mode.
 
-**`fake-ports` needs two independent detectors.** Check the `*_MODE` environment variables directly, and separately capture `console.warn` and `console.error` while awaiting all six registry resolvers, failing if any captured line contains `FAKE PORT`. Those are two different failure modes: someone deliberately setting `fake` and forgetting, versus the registry silently falling back because a real module is missing. At hour seven somebody will demo something that ran on fakes, and one of these two checks is what stops it. Also inspect `NEXT_PUBLIC_EVENTS_MODE`: a dashboard replaying a fixture is precisely the same failure. Fail on `fixture` by default, and let `--allowFixture` downgrade it to WARN for a deliberate fixture-mode dress rehearsal.
+**`fake-ports` needs two independent detectors.** Check the `*_MODE` environment variables directly, and separately capture `console.warn` and `console.error` while awaiting every resolver exported by `@/lib/registry`, failing if any captured line contains `FAKE PORT`. Enumerate the resolvers from the registry's exports rather than hard-coding a list; `contracts.md` §9 has already grown once, from six ports to seven with `MemoryPort` and `MEMORY_MODE`, and a hard-coded list is a check that silently stops covering the newest port. Those are two different failure modes: someone deliberately setting `fake` and forgetting, versus the registry silently falling back because a real module is missing. At hour seven somebody will demo something that ran on fakes, and one of these two checks is what stops it. Also inspect `NEXT_PUBLIC_EVENTS_MODE`: a dashboard replaying a fixture is precisely the same failure. Fail on `fixture` by default, and let `--allowFixture` downgrade it to WARN for a deliberate fixture-mode dress rehearsal.
 
 **The manual checks appear in `CHECKS` as `SKIP`** rather than being omitted. The item count in the script output and the item count in `docs/preflight.md` must match, so nothing is silently dropped between the two.
 

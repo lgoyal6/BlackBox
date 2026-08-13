@@ -176,6 +176,16 @@ What to skip and what to keep:
 - **Skip reference lists.** Drop any section whose title matches `/^references?$/i` or `/acknowledg/i`, and drop the `References` subsection from within every guideline body. Citation strings are dense, distinctive text, which means they retrieve well and are worthless read aloud.
 - **Keep the 2022 Field Triage of Injured Patients appendix.** It comes after the last regular guideline, so a naive "stop at the last title" rule drops it. Guard for a title matching `/field triage/i` explicitly. It is directly relevant to the undertriage story that the pitch's 7.1 percent number sets up, so losing it costs a demo beat.
 
+#### Chapter filter
+
+`contracts.md` §14 freezes the demo corpus to the chapters this demo can actually reach: `RUNBOOK_CHAPTER_FILTER`. `filterChapters` keeps a section when any entry in that list appears, case-insensitively, in either its `chapter` or its `title` — matching on the title as well is what catches `Field Triage` and the cardiac guidelines when chapter attribution has fallen back to `"Guidelines"`.
+
+Detect the corpus first and filter second, never the reverse. Section detection is the step that can be broken, and its health is measured by the unfiltered count; filtering first would hide a detection failure behind a plausible-looking small number.
+
+When fewer than `CHAPTER_FILTER_MIN_SECTIONS` sections match, **fall back to the full set of detected sections**, print a clear line saying so, and continue. That fallback is the contract's own instruction and it is the right trade: embedding the whole guideline document costs a few hundred extra chunks and about a minute, whereas building a better splitter to rescue the filter costs twenty minutes for a corpus the demo touches four times. A filtered corpus is preferable when the filter works, because a smaller corpus makes retrieval results easier to reason about at hour seven, but it is not worth chasing.
+
+Expect roughly 60 to 250 chunks with the filter applied and 200 to 600 without it. Print both counts.
+
 #### Chunking
 
 **Prefer one chunk per guideline whenever the whole thing fits under `MAX_CHUNK_CHARS`.** This is the most consequential decision in the phase and it is driven by the output medium: the retrieved chunk gets read aloud by an ElevenLabs voice. A chunk that begins mid-sentence sounds broken in a way that a chunk in a text box does not, and the demo's credibility rests on the agent sounding like it is reading a document rather than emitting fragments.
@@ -201,7 +211,7 @@ The fallback ladder, in order:
 
 #### The sanity gate
 
-`assertChunkCountSane` throws when the count is below `MIN_EXPECTED_CHUNKS` (50) or above `MAX_EXPECTED_CHUNKS` (3000). Expect roughly 200 to 600 chunks in a healthy run.
+`assertChunkCountSane` throws when the count is below `MIN_EXPECTED_CHUNKS` (50) or above `MAX_EXPECTED_CHUNKS` (3000). **Apply it to the unfiltered chunk count**, before the chapter filter narrows anything, because the unfiltered number is the one that measures whether section detection worked. Expect roughly 200 to 600 chunks unfiltered in a healthy run.
 
 **Call it before the first embedding call, never after.** A count of 12 means anchor detection is not matching and the corpus is twelve enormous blobs. A count of 5000 means every line is being treated as a boundary. Both are obvious in one number and invisible in a corpus you have already paid to embed. The throw message should print the count, the two bounds, and the section count, because the ratio of chunks to sections says immediately which of the two failures happened.
 
@@ -228,8 +238,8 @@ Behind `npm run ingest:runbooks`. Steps, each printing progress, because a silen
 2. `extractPages` — print the page count and whether the cache was used.
 3. `stripBoilerplate` — print the number of boilerplate lines removed and list them.
 4. `detectSections` — print the section count and the first ten titles.
-5. `chunkSection` across all sections, then `assertChunkCountSane`.
-6. Print chunk statistics: total, min/median/max character length, how many exceed `MAX_CHUNK_CHARS` (must be zero), how many are whole-guideline single chunks, and the share starting with an uppercase letter or a digit.
+5. `chunkSection` across all detected sections, then `assertChunkCountSane` on that unfiltered total.
+6. `filterChapters`, printing how many sections matched `RUNBOOK_CHAPTER_FILTER` and whether it fell back, then print chunk statistics for the corpus that will actually be written: total, min/median/max character length, how many exceed `MAX_CHUNK_CHARS` (must be zero), how many are whole-guideline single chunks, and the share starting with an uppercase letter or a digit.
 7. Embed and write, printing batch progress.
 8. Print the final inserted count and exit 0, or the failure and exit 1.
 
@@ -257,7 +267,8 @@ Close the Mongo client in a `finally` block so the script exits rather than hang
 - [ ] `detectSections` returns at least 40 sections, each with a non-empty `title` and `pageStart <= pageEnd`
 - [ ] At least one section's title matches `/field triage/i`
 - [ ] No section title matches `/^references?$/i` or `/acknowledg/i`, and no chunk's `sectionPath` ends with `References`
-- [ ] Total chunk count is between 50 and 3000, and `assertChunkCountSane` throws on 12 and on 5000
+- [ ] Unfiltered chunk count is between 50 and 3000, and `assertChunkCountSane` throws on 12 and on 5000
+- [ ] `filterChapters` prints its matched-section count, and either it matched at least 15 sections or the run printed the fallback line and used every detected section
 - [ ] Every chunk's `text.length` is at most 1600
 - [ ] At least 40 percent of chunks are whole-guideline single chunks, so the TTS-friendly path is the common case rather than the exception
 - [ ] At least 95 percent of chunks begin with an uppercase letter, a digit, or a bullet or dash

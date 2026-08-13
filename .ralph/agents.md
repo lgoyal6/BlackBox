@@ -106,7 +106,7 @@
 | 2026-08-13 | **Demo slice, not the 30M-row dataset.** ~180 incidents, 40 templated postmortems, NASEMSO chapters relevant to the two calls | A hackathon demo needs retrieval to look real, not a warehouse. The 15.0% pitch number still comes from four Socrata COUNT aggregates — one number each, never a row download. Never hit the bulk CSV. Constants in contracts.md §14. |
 | 2026-08-13 | **`--templated` is the default** for seed narratives; LLM is opt-in | Forty deterministic templates still retrieve. Four hundred LLM calls eat the phase budget. |
 | 2026-08-13 | **`RetrievalSource` includes `"remediations"`** with `SOURCE_WEIGHTS.remediations = 1.25` | `failureMemory` returns `Hit[]` and queries remediations; without this member there is no honest value for `Hit.source`. Fan-out stays three collections (`decisions`, `postmortems`, `runbooks`). |
-| 2026-08-13 | **WebRTC uses `conversationToken` (`getWebrtcToken`), not a signed URL** | `@elevenlabs/react` 1.12.0: a `signedUrl` session is WebSocket-only; passing it with `connectionType: "webrtc"` throws. Added `VoicePort.conversationToken()` and `GET /api/voice/conversation-token`. The signed-url route stays for the WebSocket fallback. |
+| 2026-08-13 | Dashboard display rules locked: `status.startedAt`, absolute `write.count`, `timeline` as a write bucket, `GRAPH_STAGES` four-pill footer, Recording = not closed, rows show `Hit.score` | Pixel reference cannot be built from the event union without these. Highest-consequence: `write.count` must be absolute or SSE replay double-counts the counters the presenter points at. |
 
 ## Open Items
 

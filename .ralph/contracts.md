@@ -86,6 +86,14 @@ export const GRAPH_NODE_ORDER: GraphNode[] = [
   "triage", "signature_match", "brief", "plan", "readback_gate",
   "execute_record", "verify", "record_decision", "await_input", "postmortem",
 ];
+
+/** Footer pills in reference.png. Every GraphNode maps to exactly one stage. */
+export const GRAPH_STAGES = [
+  { id: "triage",   label: "triage",        nodes: ["triage"] },
+  { id: "recall",   label: "recall",        nodes: ["signature_match", "brief", "plan"] },
+  { id: "readback", label: "readback gate", nodes: ["readback_gate", "await_input"] },
+  { id: "record",   label: "record",        nodes: ["execute_record", "verify", "record_decision", "postmortem"] },
+] as const;
 ```
 
 `CALL_TYPE_FAMILY` maps raw NYC codes to families:
@@ -346,22 +354,34 @@ export interface EventBase {
 
 export type BlackboxEvent = EventBase & (
   | { kind: "status";     payload: { status: IncidentStatus; ref: string; label: string;
-                                     dispatchArea: string; unit?: string } }
+                                     dispatchArea: string; unit?: string;
+                                     startedAt: Date } }   // header elapsed clock; first status of the call, never updated
   | { kind: "node";       payload: { node: GraphNode; phase: "enter" | "exit" } }
   | { kind: "voice";      payload: { speaker: "medic" | "agent"; text: string;
-                                     clock: string } }        // clock = "44:31"
+                                     clock: string } }        // clock = "44:31" — independent of header elapsed
   | { kind: "decision";   payload: { decisionId: string; actionChosen: string;
                                      rationaleRecorded: boolean; protocolConflict: boolean } }
   | { kind: "readback";   payload: { state: "awaiting" | "confirmed" | "rejected";
                                      readbackText: string } }
   | { kind: "retrieval";  payload: { query: string; hits: Hit[] } }
   | { kind: "write";      payload: { collection: string; count: number } }
+      // count is ABSOLUTE for that bucket, never a delta — replay would double-count otherwise
+      // collection is a display bucket: real collection names plus "timeline"
   | { kind: "checkpoint"; payload: { count: number } }
   | { kind: "pcr";        payload: { postmortemId: string; preview: string } }
 );
 ```
 
 `events` has a **TTL index on `t` of 24 hours** so rehearsal runs self-clean.
+
+Display rules the dashboard and emitters both honor:
+
+- Header elapsed clock uses `status.payload.startedAt`, not `voice.clock`. Those are independent (`04:42` vs `44:31` in the pixel reference).
+- The `Recording` pill is on when `status !== "closed"`. No extra event kind.
+- `write.payload.count` is the current absolute total for that bucket. Emitters re-send the full number; the client does not add.
+- `write.payload.collection` may be `"timeline"` even though timeline rows live on the incident document. `/api/counters` does not have to return that key; the live `write` stream does.
+- Footer pills come from `GRAPH_STAGES`, not from rendering all ten `GraphNode` values.
+- Vector-search rows display `Hit.score`. `rrf` is used only to pick which snippet is expanded.
 
 ## 9. Ports
 
