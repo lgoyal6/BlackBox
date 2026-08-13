@@ -8,352 +8,441 @@
 
 ## Objective
 
-Stand up the conversational voice layer the demo is judged on: an ElevenLabs agent whose server tools hit our Next.js routes, a `VoicePort` that mints a connection credential without leaking the API key, deterministic readback and honest rationale extraction, and a browser WebRTC operator console via `@elevenlabs/react`'s `useConversation`. Barge-in is mandatory. The agent never proposes a treatment.
+Build the voice layer: a browser WebRTC session driven by `@elevenlabs/react`, an ElevenLabs agent configured with seven server tools pointed at our own Next.js route handlers, a system prompt that carries the scope guardrail and the readback protocol, and the one piece of real local logic — splitting a medic's utterance into an action and a rationale without ever inventing the rationale.
 
-## Confirm The Current API Before Writing Any Payload
+This phase is where three of the four ElevenLabs judging criteria are won: Agentic Depth (the tools are real and write to Atlas mid-call), Interaction Design (barge-in and the tone shift), and Technical Integration (aviation-style readback).
 
-The Agents Platform surface has moved (Conversational AI → Agents Platform). Writing a payload from memory and debugging a 422 is the fastest way to blow this budget. **Before `scripts/setup-agent.ts` constructs a request body, confirm the live types against Context7** (`/elevenlabs/elevenlabs-js` and `/websites/elevenlabs_io`) and the installed `@elevenlabs/elevenlabs-js@2.63.0` typings. Log the confirmed method names in `.ralph/agents.md` under Technical Decisions.
+## Do This First (10 minutes, before writing any payload)
 
-Verified against Context7 on 2026-08-13 (re-check if the installed types disagree):
+**Confirm the current ElevenLabs API surface against live documentation. Do not write the agent configuration from memory.**
 
-| Need | Current API | Do not use |
-|---|---|---|
-| Server SDK | `import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js"` | The legacy `elevenlabs` 1.59.0 package |
-| Create agent | `client.conversationalAi.agents.create({ name, conversationConfig })` → `{ agentId }` | Guessed REST paths from blog posts |
-| Update agent | `client.conversationalAi.agents.update(agentId, { conversationConfig, ... })` | Recreating a new agent on every setup run |
-| Workspace webhook tools | `client.conversationalAi.tools.create` with `WebhookToolConfigInput` (`name`, `description`, `responseTimeoutSecs`, `interruptionMode`, `apiSchema`) | `client.webhooks.create` (that is a workspace event webhook, not a tool) |
-| Inline webhook tool | `conversationConfig` tools item `{ type: "webhook", name, description, apiSchema: { url, method, requestHeaders, requestBodySchema } }` | Invented `server_url` / `webhook_url` keys |
-| Signed URL (WebSocket) | `client.conversationalAi.conversations.getSignedUrl({ agentId })` → `{ signedUrl }` | Putting `ELEVENLABS_API_KEY` in the browser |
-| WebRTC token | `client.conversationalAi.conversations.getWebrtcToken({ agentId })` or `GET https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=` | Assuming a signed URL is WebRTC |
-| Browser hook | `import { useConversation } from "@elevenlabs/react"` | Native audio bindings, the legacy client |
+ElevenLabs renamed and reshaped this product — Conversational AI became the Agents Platform — and in the process the agent-creation payload, the server-tool definition format, and the turn-taking configuration keys all moved. Anything you remember about this API is probably a version behind. Writing the payload from memory and then debugging a `422` against a moving API is the single most likely way this phase blows its 90-minute budget, and it will happen in the last hour of the build when there is no slack.
 
-**Transport rule, confirmed in `@elevenlabs/packages` `ConnectionFactory`:** a `signedUrl` session is **WebSocket only**. Passing `connectionType: "webrtc"` with a signed URL throws. A `conversationToken` session is **WebRTC**. Overview requires browser WebRTC first. Therefore:
+Use the Context7 MCP server: `resolve-library-id` for `elevenlabs`, then `query-docs` for each of the following. The `docs-researcher` subagent is an acceptable alternative if Context7 has no coverage.
 
-- `VoicePort.signedUrl()` and `GET /api/voice/signed-url` stay exactly as `contracts.md` §9–§10 specify (`{ url, agentId }`), implemented with `getSignedUrl`.
-- This phase also owns `GET /api/voice/conversation-token` returning `{ token, agentId }`, implemented with `getWebrtcToken`. The operator console uses that token and `startSession({ conversationToken })`.
-- Do not widen `VoicePort`. A new port method is a contract change.
+| What to confirm | Why it blocks you |
+|---|---|
+| Create/update agent shape in `@elevenlabs/elevenlabs-js` 2.63.0 | `scripts/setup-agent.ts` cannot be written without it |
+| Server-tool (webhook tool) definition schema: URL, method, headers, parameter schema, timeout field | Seven tools depend on the exact nesting |
+| Turn-taking / interruption configuration keys | Barge-in is mandatory and is a judged criterion |
+| The credential a browser WebRTC session needs, and the SDK call that mints it | `GET /api/voice/signed-url` returns it |
+| `useConversation` options and callbacks in `@elevenlabs/react` 1.12.0, including how session start receives that credential and which accessor exposes input volume | The operator console reads from these |
+| Current lowest-latency TTS model tier identifier | Latency is explicitly judged |
+| Whether the platform exposes a server-side way to inject a message into an in-progress conversation | Decides what `VoicePort.speak` can actually do |
 
-If the installed 2.63.0 types rename any of the above, **follow the installed types**, not this table, and record the rename in `agents.md`. Do not invent a third client.
+**Write the confirmed field names into `.ralph/agents.md` under Technical Decisions before you write the payload.** Nobody should have to re-research this, and the next agent to touch voice will otherwise redo the same ten minutes.
+
+Two conventions throughout this spec: where an exact ElevenLabs field name would be needed, the spec describes the **behaviour** and expects you to bind it to whatever the current docs call it. Where a number is given as a starting point (voice settings), it is a starting point to tune by ear, not a fact.
 
 ## Reference Files (read before implementing)
 
-- `.ralph/contracts.md` §9 — `VoicePort` (`speak`, `signedUrl`) and the registry path `@/lib/voice`.
-- `.ralph/contracts.md` §10 — `GET /api/voice/signed-url` response `{ url, agentId }`; tool routes this agent must call.
-- `.ralph/contracts.md` §3 — `toDisplayId`. **Never speak an 8-digit `incidentId`.**
-- `.ralph/contracts.md` §4 — `labelFor`. **Never speak a raw dispatch code.**
-- `.ralph/contracts.md` §6 — `SPOKEN_WORD_CAP` (40).
-- `.ralph/overview.md` — Scope Guardrail, Voice Transport Risk, ElevenLabs prize criteria, Critical Rule 3.
-- `fixtures/utterances.json` — eight medic utterances with expected `actionChosen` / `rationale` splits, including cases that deliberately omit a reason.
-- `app/api/tools/**` (PHASE-11 owns; **do not edit**). This phase only *calls* those URLs from the agent config.
+- `.ralph/overview.md` — **Scope Guardrail** (the hard constraint this prompt encodes), Voice Transport Risk, the ElevenLabs criteria table, How It Operates For A Medic (the three phases the prompt has to support).
+- `.ralph/contracts.md` §10 — the seven tool request shapes and their latency budgets. The agent's tool parameter schemas must match these exactly or the handlers reject the body with a `400` and the agent goes quiet.
+- `.ralph/contracts.md` §9 — `VoicePort`, and the registry rule that the real module default-exports at a fixed path.
+- `.ralph/contracts.md` §3 — the three id forms. **Voice always speaks `displayId`, never `incidentId`.**
+- `.ralph/contracts.md` §4 — `CODE_LABELS` and `labelFor()`. The agent never says a raw dispatch code aloud.
+- `.ralph/contracts.md` §5 — `DecisionDoc`, especially the required non-empty `rationale` (Critical Rule 4).
+- `.ralph/contracts.md` §7 — `PendingReadback` and `ReadbackConfirmation`, the shapes on both sides of the gate.
+- `fixtures/utterances.json` (PHASE-01) — 8 medic utterances with expected action/rationale splits. This is what `extractRationale` is graded against, including the cases with **no** stated reason.
 
 ## Parallel-Safe Contract
 
 ### Files this phase owns
 
-| Path | Purpose |
-|---|---|
-| `src/lib/voice/index.ts` | Default export satisfying `VoicePort` |
-| `src/lib/voice/client.ts` | `ElevenLabsClient` singleton |
-| `src/lib/voice/prompt.ts` | System prompt + first message, including the guardrail sentence |
-| `src/lib/voice/readback.ts` | Pure `composeReadback` |
-| `src/lib/voice/rationale.ts` | Extraction that may return `null` |
-| `src/lib/voice/tools.ts` | Seven webhook tool definitions (no network) |
-| `app/api/voice/signed-url/route.ts` | Contract route |
-| `app/api/voice/conversation-token/route.ts` | WebRTC token route |
-| `app/voice/page.tsx` | Operator console |
-| `app/voice/console.tsx` | `useConversation` wiring |
-| `scripts/setup-agent.ts` | Create/update agent, print `agentId` |
+From the ownership table in `overview.md`, PHASE-13 owns exactly:
 
-`npm run agent:setup` already points at that script. Do not edit `package.json`. Do not add Twilio files unless the 30-minute upgrade is attempted *after* the browser path passes.
+- `src/lib/voice/**`
+- `app/voice/**`
+- `app/api/voice/**`
+- `scripts/setup-agent.ts`
 
-### Ports consumed
+The `agent:setup` npm script already exists from PHASE-01 (`contracts.md` §12) — do not edit `package.json`.
 
-| Port | Used for | Set this to build in isolation |
+`app/layout.tsx` comes from PHASE-01's scaffold and is **owned by PHASE-14.** Do not create or edit it, and do not add global CSS. If the root layout is missing, that is a PHASE-01 gap to report, not a file to add. Style `app/voice/page.tsx` with the Tailwind classes the scaffold already provides so it renders regardless of what PHASE-14 is doing to the dashboard.
+
+### Ports consumed, and how to build with zero dependencies
+
+| Port | Used for | Fake behaviour that makes this verifiable alone |
 |---|---|---|
-| `EventsPort` | `speak` emits a `voice` event so the dashboard can render the line | `EVENTS_MODE=fake` |
-| `LlmPort` | Rationale extraction only | `LLM_MODE=fake` |
+| `LlmPort` | `extractRationale` | Templated deterministic strings, zero network |
+| `EventsPort` | recording what `speak` would have said | In-memory array with `__drain()` |
 
-Tool HTTP calls go to PHASE-11's routes. With those routes absent, `setup-agent` still writes the config, and `composeReadback` / `extractRationale` still verify against fixtures with zero network. Live voice verification (US-026) needs the Next app, the tool routes, and a real `ELEVENLABS_API_KEY`. That is the last third of the budget, not a blocker for US-024 and US-025.
+Build and verify with:
 
 ```
-VOICE_MODE=real
-EVENTS_MODE=fake LLM_MODE=fake
-EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake GRAPH_MODE=fake
+LLM_MODE=fake EVENTS_MODE=fake
+EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake GRAPH_MODE=fake VOICE_MODE=real
 ```
+
+`VOICE_MODE=real` makes the registry resolve this phase's module rather than `fakes/voice`.
+
+**One acceptance criterion genuinely needs another phase** and it is called out below: the end-to-end conversation depends on PHASE-11's `/api/tools/*` handlers existing, because the agent's tools are HTTP calls to them. Everything else — prompt composition, `composeReadback`, `extractRationale` against the fixtures, the signed-url route, the console rendering — passes with PHASE-01 alone.
+
+Until PHASE-11 lands there is a useful stand-in that tests a genuinely different thing: point the agent's tool URLs at `PUBLIC_BASE_URL/api/tools/*` anyway and confirm that a request through the tunnel reaches our server and returns a `404`. That proves tunnel reachability, DNS, and header plumbing independently of any handler logic, and those are the parts that fail in a way nobody can debug from inside the browser.
 
 ### Port implemented
 
-`VoicePort`, **default-exported from `src/lib/voice/index.ts`** (registry path `@/lib/voice`):
+PHASE-13 implements `VoicePort`. Per `contracts.md` §9, it must **default-export an object satisfying `VoicePort` from exactly `src/lib/voice/index.ts`** (registry path `@/lib/voice`). A named export, or the object living in a sibling file with no re-export, makes the registry silently fall back to the fake — and the fake's `speak` only writes to the console, so the failure looks like an agent that has gone mute.
 
-```ts
-const voice: VoicePort = { speak, signedUrl };
-export default voice;
-```
+### Transport, locked
 
-Use `satisfies VoicePort` so a signature drift is a compile error.
+| Rank | Transport | Status |
+|---|---|---|
+| 1 | Browser WebRTC via `@elevenlabs/react`'s `useConversation` | **Primary.** Build this and make the whole demo work on it before considering anything else. Lowest risk, no audio drivers, real barge-in, real latency, and a first-class React hook that belongs in this stack. |
+| 2 | Twilio outbound call via ElevenLabs' native integration | **Upgrade, timeboxed to 30 minutes.** An actual phone actually rings on stage, which is worth real points because the pitch claims the system calls the medic. Needs a Twilio account, a purchased number, and the integration configured. If it is not working in 30 minutes, stop and use the browser transport. |
+| 3 | Anything requiring native audio bindings | **Never.** There is no time to debug native modules today. |
+
+Because the agent's tools are server tools hitting our own route handlers, **all transports run identical logic.** The upgrade changes who hears the audio and nothing else, which is exactly why it is safe to timebox.
 
 ## Files to Create
 
-### `src/lib/voice/client.ts`
-
-```ts
-import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-
-export function getElevenLabs(): ElevenLabsClient;
-```
-
-Construct with `{ apiKey: env.elevenLabsApiKey }`. Cache on `globalThis` in development, same reason as the Mongo client. **Never import `elevenlabs` (legacy).** `rg -n "from \"elevenlabs\"|from 'elevenlabs'" src app scripts` must return nothing.
-
 ### `src/lib/voice/prompt.ts`
 
-```ts
-export const SCOPE_GUARDRAIL =
-  "The agent must never propose a treatment, dose, or diagnosis of its own.";
+The system prompt. This is where the "clever prompt engineering for agent personality" criterion is won or lost, and it is the artifact most worth reading with human eyes before going live — hence `--print-prompt` on the setup script.
 
-export function systemPrompt(): string;
-export function firstMessage(): string;
+```ts
+export const SYSTEM_PROMPT: string;
+
+/** Appends the live incident context (label, dispatch area, unit, displayId) to SYSTEM_PROMPT. */
+export function buildPrompt(ctx?: {
+  label?: string; dispatchArea?: string; unit?: string; displayId?: string;
+}): string;
+
+export const FIRST_MESSAGE: string;
 ```
 
-`SCOPE_GUARDRAIL` is **that exact sentence**, copied from `overview.md`. `systemPrompt()` must contain it verbatim (`includes(SCOPE_GUARDRAIL)` is an acceptance check). The rest of the prompt, in complete sentences:
+`SYSTEM_PROMPT` must contain every section below. The scope guardrail paragraph is **verbatim** — do not reword it, and do not soften it to make a demo beat land better.
 
-1. You recall what happened last time and write down what the medic decided. The human owns every clinical judgment.
-2. You may only read back what the medic said, or quote a retrieved NASEMSO passage with attribution (`From NASEMSO, section …`).
-3. Never read a raw dispatch code aloud. Use the expanded label the tools return. Never invent an incident reference; only cite a `displayId` that `recall_memory` just returned.
-4. Never speak an 8-digit incident id. Use the four-digit display id.
-5. Tone: calm and short during the brief (under fifteen seconds). Clipped and exact when confirming a drug, dose, or any irreversible action.
-6. Tool order, stated **twice** in the prompt and again in every tool description: if the medic names a drug or a dose, call `propose_readback` and wait for a spoken confirm before `record_decision`. Never `record_decision` first on a dosed utterance.
-7. If the medic states an action with no reason, ask exactly one short follow-up (`What made you choose that?`) and do not record yet.
-8. If the medic asks what they should give, refuse with the guardrail and, if a protocol hit exists, quote it with attribution. Do not suggest a treatment.
-9. Cap spoken replies at 40 words unless you are reading back a dose, in which case you speak the `readbackText` exactly.
+```
+IDENTITY
+You are BlackBox, a flight recorder for an EMS crew. You listen, you remember, and you
+brief. You are not an assistant and you are not a medical adviser. You are the thing that
+writes down what happened and what the medic decided, so the next crew does not start
+from zero.
 
-`firstMessage()` is one calm sentence that does not contain a dispatch code or a treatment. Something in the shape of: `On scene with you. Briefing from memory when you are ready.`
+SCOPE - this is absolute
+You never propose a treatment, drug, dose, or diagnosis. You recall what happened on
+similar calls, you read back exactly what the medic said, and you quote retrieved
+clinical guidance with attribution. The medic owns every clinical judgment.
+
+BREVITY
+The brief is under fifteen seconds. Every other turn is one or two sentences. The medic is
+driving or working a patient. Verbose is the exact failure mode this product was designed
+against. Never list more than two items aloud.
+
+READBACK PROTOCOL - the hard gate
+Before any drug, dose, or route is recorded, call propose_readback and speak the text it
+returns exactly as returned. Then stop and wait. Do not paraphrase it. Do not round a
+number. Do not correct the medic. If confirmation does not come, do not record. Call
+record_decision for anything involving a drug, dose, or route only after
+confirm_readback has returned confirmed.
+
+LISTEN FOR REASONING, NOT JUST ACTIONS
+When the medic states an action without a reason, ask once, briefly - "reason?" - then
+record both the action and the reason. One follow-up, then move on. This is the single
+most important behaviour you have.
+
+TONE
+Calm and measured during the brief. Clipped and staccato when confirming anything
+irreversible: short words, no filler, no pleasantries. No "sure", no "got it", no "I'd be
+happy to".
+
+SPEAKING RULES
+Never read a raw dispatch code aloud. Say "unconscious or unresponsive", never "UNC". The
+tools return expanded labels; use them.
+Never invent an incident reference. Cite only a displayId that recall_memory returned to
+you. If it returned nothing, say you have no prior record of this pattern.
+Never speak an eight-digit incident id.
+```
+
+Why each of these is load-bearing:
+
+- **Identity as a recorder, not an assistant,** is what keeps the model from drifting into helpfulness and volunteering clinical opinions.
+- **The scope guardrail** is the constraint judges get visibly twitchy about. Eva, the prior Best-ElevenLabs winner this project is modeled on, won on documentation and retrieval, not diagnosis.
+- **Brevity** is a product requirement, not a style preference. A medic with their hands in a patient cannot skip a paragraph.
+- **The readback protocol stated as a hard rule** is the only reliable way to make a model use a gate. Models skip gates that are merely mentioned.
+- **Listening for reasoning** is the product's thesis made audible. Without the one follow-up question, this is a dictation tool.
+- **The tone shift** maps directly to the emotional-inflection criterion, and doing it at the prompt level is far cheaper and more reliable than swapping voice settings mid-call.
+- **The speaking rules** exist because "UNC" spoken by a TTS voice is unintelligible, and a fabricated incident reference is the one hallucination a judge can catch in real time.
+
+`FIRST_MESSAGE` is the agent's opening line when the session connects. Keep it to one short sentence that invites the brief rather than delivering it, because the brief comes from `recall_memory` and cannot be composed before the tool has run.
 
 ### `src/lib/voice/tools.ts`
 
+The one piece of real local logic, plus the deterministic readback formatter.
+
 ```ts
-export interface VoiceToolDef {
-  name: string;
-  description: string;
-  responseTimeoutSecs: number;
-  interruptionMode: "allow";
-  apiSchema: {
-    url: string;
-    method: "POST";
-    requestHeaders: Record<string, string>;
-    requestBodySchema: unknown;
-  };
+export interface DecisionExtraction {
+  actionChosen: string;
+  rationale: string | null;      // null when the medic gave no reason. NEVER fabricate.
+  optionsConsidered: string[];
 }
 
-export function toolDefs(baseUrl: string, secret: string): VoiceToolDef[];
-```
+/** One small fast LLM call with a strict JSON schema. Returns rationale: null rather than inventing one. */
+export async function extractRationale(utterance: string): Promise<DecisionExtraction>;
 
-Seven tools, names matching `contracts.md` §10 exactly: `recall_memory`, `get_protocol`, `log_timeline`, `propose_readback`, `confirm_readback`, `record_decision`, `close_call`.
-
-- `url` is `${baseUrl.replace(/\/$/, "")}/api/tools/${name}`.
-- `requestHeaders` includes `X-BlackBox-Secret: ${secret}` and `Content-Type: application/json`.
-- `responseTimeoutSecs` is **3 or less** for every tool (`close_call` may be 3; the route's 8 s budget is a server ceiling, not a reason to hang the voice turn).
-- `interruptionMode` is `"allow"` so barge-in works during a tool call. Do not set the deprecated `disableInterruptions: true`.
-- Each `description` states when to call the tool. The `propose_readback` and `record_decision` descriptions both contain the ordering rule: propose first, record after confirm, for anything with a dose. That is the "stated twice" requirement.
-
-`toolDefs` is pure. `setup-agent.ts` maps these onto the SDK's `WebhookToolConfigInput` / inline `type: "webhook"` shape **after** reading the installed types. If the SDK wants `request_headers` on the wire and `requestHeaders` in camelCase, follow the SDK.
-
-### `src/lib/voice/readback.ts`
-
-```ts
-export function composeReadback(fields: {
-  utterance: string;
-  drug?: string;
-  dose?: string;
-  route?: string;
+/** Deterministic string formatting. NEVER an LLM call. */
+export function composeReadback(f: {
+  drug?: string; dose?: string; route?: string; utterance?: string;
 }): string;
 ```
 
-Pure deterministic string formatting. **No LLM.** Same template as PHASE-11:
+**`extractRationale`** uses `llm().json()` with a strict schema and the smallest, fastest model available, because it runs inside `record_decision`'s background task and the medic is still talking.
+
+The prompt must state, as a rule rather than a preference, that `rationale` is `null` when the medic gave no reason. **Never invent a rationale.** A fabricated one is worse than none: it puts a made-up justification in the permanent clinical record, which is precisely the harm this project claims to prevent. The empty-rationale path is not an edge case — three of the utterances in `fixtures/utterances.json` have no stated reason, and the correct output for all three is `null`.
+
+`protocolConflict` is **not** an extraction output. It defaults to `false` on the written document, and the LLM must not set it: labeling a medic's action as a protocol violation from one sentence is exactly the clinical judgment the scope guardrail forbids.
+
+**`composeReadback`** produces exactly:
 
 ```
-Confirming {dose} of {drug}, {route}. Say confirm or correct me.
+Confirm: <dose> of <drug>, <route>. Say confirm.
 ```
 
-Reproduce the dose and units exactly. `"1 milligram"` in, `"1 milligram"` out. No rounding, no unit conversion, no spelled-out digits that were not in the input.
+and when no drug/dose/route was supplied, exactly `Confirm: <utterance>. Say confirm.` No LLM ever touches this string, because the agent must speak it verbatim on this turn and an LLM can paraphrase a dose or round a number. Verbatim means verbatim.
 
-### `src/lib/voice/rationale.ts`
+**PHASE-11 carries a second copy of this function** in `app/api/tools/_lib/deps.ts`, because a route handler cannot import a module from a phase that may not exist yet. Both specs pin the same assertion so the copies cannot drift:
 
 ```ts
-export interface Extracted {
-  actionChosen: string;
-  rationale: string | null;
+composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })
+  === "Confirm: 300 mg of amiodarone, IV push. Say confirm."
+```
+
+PHASE-11's `record_decision` also soft-imports this module for extraction and validates the result at runtime. **The three field names and the `null` convention are load-bearing across that boundary** — renaming one silently degrades PHASE-11 to its fallback path. If either phase wants a compile-time shared type, the correct move is adding `DecisionExtraction` to `contracts.md` §5 and logging it in `agents.md`, not an import.
+
+### `src/lib/voice/agent-config.ts`
+
+The agent payload builder, kept separate from the setup script so `--print-prompt` and a dry run can inspect it without touching the network.
+
+```ts
+export interface ServerToolSpec {
+  name: string;
+  description: string;                 // written for the model
+  url: string;                         // `${PUBLIC_BASE_URL}/api/tools/${name}`
+  timeoutMs: number;
+  parameters: Record<string, { type: "string" | "boolean"; required: boolean; description: string }>;
 }
 
-export async function extractRationale(utterance: string): Promise<Extracted>;
+export const SERVER_TOOLS: ServerToolSpec[];
+
+/** Maps SERVER_TOOLS + prompt + voice settings into the current ElevenLabs agent payload shape. */
+export function buildAgentConfig(): unknown;
 ```
 
-Call `llm().json` with a schema whose `rationale` is `string | null`. Then apply a hard filter that does not trust the model:
+`buildAgentConfig` is where the field names you confirmed in the docs get bound. Keep every ElevenLabs-specific key inside this one function so a `422` has exactly one file to debug.
 
-- If `rationale` is null, empty, or whitespace, return `null`.
-- If `rationale` is not a case-insensitive substring of `utterance`, return `null` and log `RATIONALE REJECTED: not in utterance`.
-- Never replace a missing rationale with a guessed clause (`to protect the airway`, `per protocol`, …).
+**Every tool sends the shared secret header** `X-BlackBox-Secret: $TOOL_SHARED_SECRET`, or every call returns `401` and the agent talks to itself for the length of the demo.
 
-Verify against all eight rows of `fixtures/utterances.json`. The fixture rows that omit a reason must produce `rationale: null`. That is US-025.
+**Parameter schemas must match `contracts.md` §10 exactly.** A parameter the handler's Zod schema does not expect, or a missing required one, produces a `400` — and from the outside that is indistinguishable from a model that chose not to call the tool. Keep the schemas tight: the fewer free-text parameters, the less the model can invent.
 
-### `src/lib/voice/index.ts`
+#### The seven tools
 
-```ts
-export async function speak(incidentId: string, text: string): Promise<void>;
-export async function signedUrl(): Promise<{ url: string; agentId: string }>;
-```
+Descriptions are written **for the model** — when to call it, not what it does internally.
 
-`speak` emits a `voice` event `{ speaker: "agent", text, clock }` through `EventsPort` and, when `VOICE_MODE=real` and a conversation is not already talking, may also call the HTTP TTS endpoint **only if** the installed SDK exposes a documented text-to-speech method you confirmed. If that method is unclear, emit-only is acceptable: the conversational session is the spoken path, and `speak` exists so the graph can log what it would have said. Do not invent a WebSocket speak API.
+| Tool | Parameters | Timeout | Description written for the model (summary) |
+|---|---|---|---|
+| `recall_memory` | `incidentId`, `query` | 3 s | Call at the start of every call, and any time the medic asks what happened before or whether this has been seen. Returns prior decisions, postmortems, and guidance. Speak only the incident references it returns. |
+| `get_protocol` | `incidentId`, `topic` | 3 s | Call when the medic asks for a protocol, guideline, dose reference, or contraindication. Quote the returned text with its section title. Never answer a clinical question from your own knowledge. |
+| `log_timeline` | `incidentId`, `text`, `source` | 2 s | Call whenever the medic narrates something that happened. Pass their words, not a summary. |
+| `propose_readback` | `incidentId`, `utterance`, `drug?`, `dose?`, `route?` | 2 s | **Call this before `record_decision` whenever the medic mentions a drug, a dose, or a route.** Speak the returned text exactly as returned, then wait for the medic to confirm. Never skip this for anything involving a dose. |
+| `confirm_readback` | `incidentId`, `confirmed`, `verbatimOk` | 3 s | Call the moment the medic confirms or rejects a readback. `verbatimOk` is false if they corrected any part of it. |
+| `record_decision` | `incidentId`, `utterance` | 3 s | Call when the medic states a decision and a reason. **If the utterance involves a drug, dose, or route, you must already have called `propose_readback` and received confirmation; if you have not, call `propose_readback` instead of this.** If the medic gave no reason, ask once for the reason first. |
+| `close_call` | `incidentId` | 10 s | Call at transfer of care, when the medic says they are handing off or the call is done. Say that you are drafting the report before you call it. |
 
-`signedUrl` calls `getElevenLabs().conversationalAi.conversations.getSignedUrl({ agentId: env.elevenLabsAgentId })` and returns `{ url: result.signedUrl, agentId }`. The API key stays on the server.
+**The ordering constraint appears twice on purpose** — once in `propose_readback`'s description and once in `record_decision`'s — plus a third time in the system prompt. Models will skip a gate that a description merely mentions, so it is stated as a hard rule in both directions: the earlier tool says it must come first, and the later tool says it must not run without it.
 
-Also export a phase-local helper (not on the port):
+**Timeouts are aggressive on purpose.** A hung tool call produces dead air, and dead air on stage is indistinguishable from a broken demo. 2–3 seconds gives every handler roughly ten times its contract budget while still failing fast. `close_call` is the one exception at 10 seconds, because its contract budget is 8 seconds — and it is the one tool the agent announces before calling, so the wait is covered by speech rather than silence.
 
-```ts
-export async function conversationToken(): Promise<{ token: string; agentId: string }>;
-```
+#### Voice and latency settings
 
-implemented with `getWebrtcToken`. The conversation-token route uses this.
+| Setting | Value | Why |
+|---|---|---|
+| TTS model tier | the lowest-latency tier currently offered (confirm the identifier in the docs) | The quality difference is inaudible over a phone-quality earpiece, and latency is explicitly judged |
+| Interruption / barge-in | **enabled — mandatory** | A medic who cannot interrupt will hate it, and the criteria reward it directly |
+| Voice | calm, low register | An energetic or bright voice reads as a consumer assistant and undercuts a safety-critical framing |
+| Stability | mild — start around 0.35–0.45 and tune by ear | Extreme stability flattens the tone shift the prompt is asking for |
+| Similarity boost | moderate — start around 0.7 | |
 
 ### `app/api/voice/signed-url/route.ts`
 
 ```ts
 export const runtime = "nodejs";
 export async function GET(): Promise<Response>;
+// Response { url: string; agentId: string }
 ```
 
-`{ url, agentId }` from `signedUrl()`. 500 `{ error: string }` if the key or agent id is missing. **Never put `ELEVENLABS_API_KEY` in the JSON.**
+Mints the browser session credential server-side using `@elevenlabs/elevenlabs-js` and `ELEVENLABS_API_KEY`.
 
-### `app/api/voice/conversation-token/route.ts`
+**The ElevenLabs API key never reaches the browser.** Only `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is public. This route exists solely so the key stays server-side, so it must not accept or echo any client-supplied parameter.
+
+`500` with `{ error: "ELEVENLABS_API_KEY not configured" }` when the key is missing, and `500` with the provider's status code in the message (never its full body) when the mint call fails.
+
+If the WebRTC transport in `@elevenlabs/react` 1.12.0 wants a conversation token rather than a signed URL, **carry it in `url`** rather than changing the response shape mid-build, and note it in `agents.md`. Only this phase consumes this route, so a contract change would be legitimate — but per rule 10 in `overview.md` it means editing `contracts.md` §10 and announcing it, and a one-line note is cheaper than fourteen agents re-reading the contract.
+
+### `src/lib/voice/index.ts`
 
 ```ts
-export const runtime = "nodejs";
-export async function GET(): Promise<Response>;
+export async function speak(incidentId: string, text: string): Promise<void>;
+export async function signedUrl(): Promise<{ url: string; agentId: string }>;
+
+const voiceAdapter: VoicePort = { speak, signedUrl };
+export default voiceAdapter;
 ```
 
-`{ token, agentId }` from `conversationToken()`. Same secrecy rule. This is the route the console uses for WebRTC.
+`signedUrl` shares its implementation with the route handler — the route is a thin wrapper so both paths mint the credential the same way.
 
-### `app/voice/console.tsx` and `app/voice/page.tsx`
+**`speak` needs an honest scope.** With browser WebRTC, the agent's audio is produced inside the ElevenLabs session; a server process cannot push speech into it unless the platform exposes a way to inject a message into a live conversation. That is one of the items to confirm in the docs step.
 
-Client components. `page.tsx` is the `/voice` operator console: connection state, a mic-level bar from `getInputVolume()`, the current `incidentId` / `displayId`, a start/stop control, and a short transcript.
+- If it exists, use it, and also record the utterance.
+- If it does not, `speak` **records** the utterance — emit a `voice` event with `speaker: "agent"` and append to the incident timeline — and returns. The audio then comes from the agent reading the result of `recall_memory` on its first turn.
 
-```ts
-"use client";
-import { useConversation } from "@elevenlabs/react";
+State this in a comment at the top of the function, because it explains an architectural choice that looks like an omission otherwise: **the brief is retrieved by a tool rather than pushed by the server**, so nothing in the demo depends on server-initiated speech. Either outcome of the docs check leaves the demo working.
 
-// start:
-const { token, agentId } = await (await fetch("/api/voice/conversation-token")).json();
-await conversation.startSession({ conversationToken: token });
-```
+### `app/voice/page.tsx`
 
-Request the microphone with `navigator.mediaDevices.getUserMedia({ audio: true })` before `startSession`. Wire `onConnect`, `onDisconnect`, `onError`, `onStatusChange`, `onModeChange`, `onInterruption`, and `onAgentToolRequest` / `onAgentToolResponse` so the console can show that a tool actually fired. **Verify tool use from those callbacks and the Next server log, not from the fact that the agent spoke.** An agent that sounds right and never called a tool fails Agentic Depth.
+The operator console. A client component (`"use client"`), deliberately minimal, deliberately **separate from the judge dashboard** so the operator drives voice on one screen while judges watch the other.
 
-Pass the live `incidentId` as a dynamic variable if the installed types support `dynamicVariables` on `startSession`; otherwise the medic (operator) says the display id and the tools take `incidentId` from the operator-typed field that the console includes in… no. Tools are server tools with their own body. The console should display the incident id the operator fired, and the agent prompt should tell it to use that id, supplied via `sendContextualUpdate` when the installed client exposes it. If it does not, the operator says the four-digit display id and `recall_memory` is called with the `incidentId` the console placed in a well-known dynamic variable. Follow the installed `useConversation` types. Do not invent a client-tool shim that reimplements the seven server tools in the browser.
+Contents:
 
-Barge-in is a platform setting (`interruptionMode: "allow"` on tools, and do not disable first-message interruptions). Confirm by speaking over the brief; `onInterruption` should fire and the agent should stop. That is an ear check in US-026.
+- A **Connect / Disconnect** button that fetches `/api/voice/signed-url` and starts the session via `useConversation`, passing `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`.
+- **Connection state** rendered as text — connecting, connected, disconnected, error — from the hook's status value.
+- A **mic level** meter from whichever input-volume accessor the hook exposes in 1.12.0. Its job is to answer "is the microphone actually live" in one glance, which is the question you will be asking ten seconds before the pitch.
+- The **current incident**: `displayId` and `ref`, plus two buttons calling `POST /api/demo/fire` with `{ pattern: "arrest" }` and `{ pattern: "cardiac" }` so the operator can drive the whole demo from this one screen. That is an HTTP call to PHASE-11, not an import, so it stays inside the ownership rules.
+- A rolling list of **tool calls** if the hook surfaces them in a message or debug callback; if it does not, omit it rather than faking it. The authoritative proof of tool invocation is the server log, and the acceptance criteria use that.
+
+**Both windows must be visible without alt-tabbing during the pitch.** Plan for two browser windows side by side — this console and the dashboard — and check it during rehearsal rather than discovering it on stage. Keep this page narrow enough to sit beside the dashboard.
+
+Open this page on `http://localhost:3000/voice`, not through the tunnel. The WebRTC audio path goes directly from the browser to ElevenLabs and never traverses the tunnel; the tunnel exists only so ElevenLabs' servers can reach `/api/tools/*`. Running the console on localhost avoids a second microphone-permission prompt and takes the tunnel off the audio path entirely.
 
 ### `scripts/setup-agent.ts`
 
-Idempotent. Behind `npm run agent:setup`.
-
+```ts
+async function main(): Promise<void>;
+// flags: --print-prompt   dump the resolved system prompt and exit, no network
+//        --dry-run        print the full agent payload and exit, no network
 ```
---print-prompt     dump systemPrompt() and exit 0
---dry-run          build the payload, print it, do not POST
-```
 
-Steps:
+Behaviour:
 
-1. Confirm the SDK methods exist on the installed client (the Context7 check). If `conversationalAi` is missing, fail with a message naming the package and telling the operator they installed the legacy `elevenlabs` package.
-2. `toolDefs(env.publicBaseUrl, env.toolSharedSecret)`. Fail if `PUBLIC_BASE_URL` is localhost and we are not in `--dry-run` — ElevenLabs server tools cannot reach `localhost`.
-3. Create or update seven workspace tools via `conversationalAi.tools.create` / list-and-update, **or** pass them inline on `conversationConfig` if that is what 2.63.0 accepts. Prefer the shape the types compile against.
-4. `agents.create` when `ELEVENLABS_AGENT_ID` is empty; `agents.update` when it is set. Print `agentId=...` on its own line.
-5. Print a reminder to write that id into `.env` as both `ELEVENLABS_AGENT_ID` and `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`. Do not write `.env` from the script (PHASE-01 owns env files).
-
-Conversation config, using the confirmed field names (camelCase in the SDK):
-
-- `agent.prompt.prompt` = `systemPrompt()`
-- `agent.firstMessage` = `firstMessage()`
-- `agent.language` = `"en"`
-- `tts.voiceId` = `env.elevenLabsVoiceId` when set
-- Tools as above, `interruptionMode: "allow"`, `responseTimeoutSecs <= 3`
-- Turn-taking: do not set any flag that disables interruptions. If a `turn.turnEagerness` or equivalent exists on the installed types, prefer a value that allows barge-in (`eager` / `normal`, not a `patient` mode that ignores overlap). Confirm the enum on the installed types before setting it.
-
-`--print-prompt` is how US-024 greps the guardrail without placing a live call.
-
-### Twilio outbound (optional, 30-minute timebox)
-
-Only after the browser console has passed the barge-in and tool-order checks. An actual ringing phone is worth points because the pitch says the system calls the medic. If the native ElevenLabs–Twilio integration is not configured in five minutes of dashboard clicking, **stop**. Do not debug SIP. Native audio bindings are forbidden.
+- **Idempotent via a stored agent id.** If `ELEVENLABS_AGENT_ID` is set, update that agent; otherwise create one, print the id, and print an explicit reminder to write it into `.env` as both `ELEVENLABS_AGENT_ID` and `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`. Creating a duplicate agent every run is how you end up debugging a stale one.
+- **Refuse to run when `PUBLIC_BASE_URL` is empty, or points at `localhost` or `127.0.0.1`.** Exit non-zero with a message saying the tool URLs must be reachable from ElevenLabs' servers. ElevenLabs cannot reach localhost, and the resulting failure is an agent that sounds perfect and never calls a tool — the worst failure mode in this build, and one that survives a full rehearsal unnoticed.
+- **Print the seven resolved tool URLs** before sending anything, so a wrong `PUBLIC_BASE_URL` is caught by eye in one second.
+- `--print-prompt` writes the resolved prompt to stdout and exits `0` with no network call. The prompt is the part most worth reading with human eyes before going live.
 
 ## Acceptance Criteria
 
-- [ ] The current agent-create payload shape and server-tool schema were confirmed against live ElevenLabs docs (Context7) and the installed `@elevenlabs/elevenlabs-js@2.63.0` types **before** the config was written; the confirmed method names are logged in `agents.md`
-- [ ] `rg -n "from ['\"]elevenlabs['\"]" src app scripts` returns nothing; the only SDK import is `@elevenlabs/elevenlabs-js`
-- [ ] `src/lib/voice/index.ts` default-exports an object satisfying `VoicePort`, and `VOICE_MODE=real` resolves it with no `FAKE PORT` warning
-- [ ] `npm run agent:setup -- --print-prompt` prints a prompt that contains the exact sentence `The agent must never propose a treatment, dose, or diagnosis of its own.`
-- [ ] The printed prompt forbids reading raw dispatch codes aloud and forbids citing an incident reference not returned by `recall_memory`
-- [ ] The printed prompt specifies the tone shift from calm during the brief to clipped when confirming irreversible actions
-- [ ] `npm run agent:setup` creates or updates an agent, prints `agentId=`, and is idempotent across two runs (same id, or an explicit update)
-- [ ] All seven server tools are registered and point at `${PUBLIC_BASE_URL}/api/tools/*` with the `X-BlackBox-Secret` header
-- [ ] Every tool description states that `propose_readback` precedes `record_decision` for anything with a dose, and the system prompt states that rule twice
-- [ ] Every tool `responseTimeoutSecs` is 3 or less
-- [ ] Interruption / barge-in is enabled (`interruptionMode: "allow"`; no `disableInterruptions: true`)
-- [ ] `composeReadback` is pure, makes no LLM call, and for `{ drug: "epinephrine", dose: "1 milligram", route: "IV" }` returns a string containing those three substrings exactly
-- [ ] `extractRationale` on all 8 `fixtures/utterances.json` rows matches the expected action / rationale split
-- [ ] Fixture rows that omit a reason produce `rationale: null`; the extractor never invents one
-- [ ] `GET /api/voice/signed-url` returns `{ url, agentId }` and the response body does not contain `sk_` or the API key
-- [ ] `GET /api/voice/conversation-token` returns `{ token, agentId }`
-- [ ] `app/voice/page.tsx` connects via `useConversation` + `conversationToken` (WebRTC), and shows connection state, mic level, and the current incident
-- [ ] Speaking over the agent mid-brief stops it (`onInterruption` fires), verified by ear
-- [ ] A spoken brief is derived from a real `recall_memory` invocation, verified in the server log or `onAgentToolRequest`
-- [ ] Stating a drug and dose calls `propose_readback` before any `record_decision`, verified by log order
-- [ ] The spoken readback contains the dose and units exactly as said
-- [ ] Confirming resumes the LangGraph interrupt (or the fake graph) and the graph advances
-- [ ] Stating an action with no reason produces exactly one short follow-up and inserts zero `decisions` documents
-- [ ] A decision recorded by voice appears in `decisions` with a non-empty `rationale`
-- [ ] The agent never speaks a raw dispatch code, verified against the transcript
-- [ ] Asking `what should I give` produces a refusal plus an attributed guideline quote, never a treatment suggestion
-- [ ] Time from end of medic speech to first agent audio on the brief is under about 1.5 seconds
-- [ ] `close_call` produces a postmortem and a PCR draft when PHASE-11's route is present
 - [ ] `npm run typecheck` passes with zero errors
-- [ ] No file was created or modified outside `src/lib/voice/**`, `app/voice/**`, `app/api/voice/**`, and `scripts/setup-agent.ts`
+- [ ] `npm run build` succeeds
+- [ ] `src/lib/voice/index.ts` has a **default export** and `const _check: VoicePort = voiceAdapter;` compiles
+- [ ] With `VOICE_MODE=real`, `(await voice())` from `@/lib/registry` returns this module with no `FAKE PORT` warning
+- [ ] **Verifiable with all other ports faked:** with `LLM_MODE=fake EVENTS_MODE=fake`, `npx tsx scripts/setup-agent.ts --print-prompt` prints the prompt and exits `0` with no network access
+- [ ] The printed prompt contains the scope guardrail sentence **verbatim**: "You never propose a treatment, drug, dose, or diagnosis."
+- [ ] The printed prompt contains all seven required sections: identity, scope, brevity, readback protocol, listen-for-reasoning, tone, speaking rules
+- [ ] `composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })` returns exactly `Confirm: 300 mg of amiodarone, IV push. Say confirm.`
+- [ ] `composeReadback` contains no reference to `llm` and makes zero network calls
+- [ ] `extractRationale` run over all 8 entries in `fixtures/utterances.json` returns a non-empty `actionChosen` for every one
+- [ ] **`extractRationale` returns `rationale: null` for every fixture utterance that states no reason, and never a fabricated string** — this is the criterion that protects the clinical record
+- [ ] `extractRationale` never returns a `protocolConflict` field
+- [ ] `SERVER_TOOLS` has exactly seven entries whose names are `recall_memory`, `get_protocol`, `log_timeline`, `propose_readback`, `confirm_readback`, `record_decision`, `close_call`
+- [ ] Every tool's parameter set matches its request shape in `contracts.md` §10 — no extra parameters, no missing required ones
+- [ ] Every tool URL is `${PUBLIC_BASE_URL}/api/tools/<name>` and every tool sends `X-BlackBox-Secret`
+- [ ] Every tool timeout is between 2 and 3 seconds except `close_call`, which is 10
+- [ ] The ordering rule appears in **both** `propose_readback`'s and `record_decision`'s descriptions, and in the system prompt
+- [ ] Interruption / barge-in is enabled in the payload, verified by inspecting `--dry-run` output
+- [ ] `scripts/setup-agent.ts` exits non-zero with a `PUBLIC_BASE_URL` that is empty or points at localhost
+- [ ] Running `npm run agent:setup` twice with `ELEVENLABS_AGENT_ID` set updates one agent and creates no second agent
+- [ ] `GET /api/voice/signed-url` returns `{ url, agentId }` with a real key, and `500` with a clear error when the key is absent
+- [ ] **The API key never reaches the browser:** `ELEVENLABS_API_KEY` appears nowhere under `app/voice/` or `src/components/`, and the key's value appears nowhere in the built client bundle under `.next/static`
+- [ ] `/voice` renders, the Connect button starts a session, and the connection state and mic level both change when the microphone is live
+- [ ] **Barge-in works in practice:** speaking over the agent mid-sentence stops its audio within roughly a second
+- [ ] **The guard against a demo that sounds right but never called a tool:** after a scripted conversation, the server log contains at least one `[tool] recall_memory` line, and for the dose turn a `[tool] propose_readback` line appears **before** the `[tool] record_decision` line. Speech alone is not evidence — this is the criterion that separates a real agent from a TTS layer reading pre-generated text, and it is what Agentic Depth is written to filter out. *(needs PHASE-11)*
+- [ ] With `decisions` empty, the agent states it has no prior record and **cites no `displayId`** — verified by transcript
+- [ ] The agent speaks no raw dispatch code in a full run — no "UNC", no "SICK" as a code — verified by transcript
+- [ ] The agent speaks no eight-digit incident id — verified by transcript
+- [ ] Tunnel reachability, testable before PHASE-11 exists: a request to `${PUBLIC_BASE_URL}/api/tools/recall_memory` from outside the local network reaches this server (a `404` or `401` proves it; a timeout or DNS failure does not)
+- [ ] No file was created or modified outside `src/lib/voice/**`, `app/voice/**`, `app/api/voice/**`, `scripts/setup-agent.ts`
 
 ## Verification
 
+PowerShell note: set env vars with `$env:VAR="value"` on a preceding line; the inline `VAR=value cmd` form is bash-only.
+
 ```bash
 npm run typecheck
-
-# Prompt and guardrail, no network required
-npx tsx scripts/setup-agent.ts --print-prompt | rg -n "never propose a treatment, dose, or diagnosis"
-
-# Readback + rationale against fixtures, ports faked
-EVENTS_MODE=fake LLM_MODE=fake npx tsx -e "
-import { composeReadback } from './src/lib/voice/readback';
-import { extractRationale } from './src/lib/voice/rationale';
-import { readFileSync } from 'fs';
-const rb = composeReadback({ utterance: 'pushing one milligram of epi IV',
-  drug: 'epinephrine', dose: '1 milligram', route: 'IV' });
-console.log('readback', rb);
-console.log('verbatim', rb.includes('1 milligram') && rb.includes('epinephrine'));
-const rows = JSON.parse(readFileSync('fixtures/utterances.json','utf8'));
-for (const u of rows) {
-  const got = await extractRationale(u.utterance);
-  console.log(u.utterance.slice(0,40), '=>', got);
-}
-"
-
-# Package guard
-rg -n "from ['\"]elevenlabs['\"]" src app scripts
-rg -n "@elevenlabs/elevenlabs-js" src/lib/voice scripts
+npm run build
 ```
 
-Live path (needs `ELEVENLABS_API_KEY`, `PUBLIC_BASE_URL` tunnel, PHASE-11 routes, worker optional):
+Prompt and payload, no network:
+
+```bash
+npx tsx scripts/setup-agent.ts --print-prompt
+npx tsx scripts/setup-agent.ts --print-prompt | grep -c "You never propose a treatment, drug, dose, or diagnosis."   # 1
+npx tsx scripts/setup-agent.ts --dry-run
+```
+
+The readback formatter and the rationale extractor:
+
+```bash
+LLM_MODE=fake npx tsx -e "
+import { composeReadback, extractRationale } from './src/lib/voice/tools';
+console.log(JSON.stringify(composeReadback({ drug:'amiodarone', dose:'300 mg', route:'IV push' })));
+console.log(JSON.stringify(composeReadback({ utterance:'holding cervical spine' })));
+const fx = JSON.parse(require('fs').readFileSync('fixtures/utterances.json','utf8'));
+for (const u of fx) {
+  const r = await extractRationale(u.utterance ?? u.text);
+  console.log([r.actionChosen !== '', r.rationale === null ? 'NULL' : 'HAS', u.utterance ?? u.text].join(' | '));
+}
+process.exit(0);
+"
+```
+
+The first line must be exactly `"Confirm: 300 mg of amiodarone, IV push. Say confirm."`. Every row must start `true`, and the `NULL`/`HAS` column must match the fixture's expectation for that utterance.
+
+Tool URL and secret check, straight off the payload:
+
+```bash
+PUBLIC_BASE_URL=https://example.ngrok.app TOOL_SHARED_SECRET=devsecret npx tsx -e "
+import { SERVER_TOOLS } from './src/lib/voice/agent-config';
+console.log('count', SERVER_TOOLS.length);
+for (const t of SERVER_TOOLS) console.log(t.name, t.timeoutMs, t.url);
+process.exit(0);
+"
+```
+
+The localhost guard:
+
+```bash
+PUBLIC_BASE_URL=http://localhost:3000 npx tsx scripts/setup-agent.ts; echo "exit=$?"   # non-zero
+PUBLIC_BASE_URL= npx tsx scripts/setup-agent.ts; echo "exit=$?"                        # non-zero
+```
+
+Create or update the agent, then confirm the key never shipped to the browser:
 
 ```bash
 npm run agent:setup
-# write the printed agentId into env, then:
-VOICE_MODE=real EVENTS_MODE=fake GRAPH_MODE=fake npm run dev
-# open /voice, start the session, run the US-026 ear checks
+curl -s localhost:3000/api/voice/signed-url | head -c 200
+grep -rn "ELEVENLABS_API_KEY" app/voice src/lib/voice/tools.ts || echo "clean"
+grep -rl "$ELEVENLABS_API_KEY" .next/static 2>/dev/null || echo "key not in client bundle"
+```
+
+The tool-invocation guard — the one that catches an agent that sounds right and did nothing. Run the app with the tool log visible, hold a scripted conversation on `/voice`, then read the log:
+
+```bash
+npm run dev 2>&1 | tee /tmp/blackbox-dev.log
+# conversation: ask what happened on similar calls, narrate an action with a reason,
+# then say "pushing 300 of amio IV" and confirm the readback, then hand off.
+grep '\[tool\]' /tmp/blackbox-dev.log
+```
+
+Expected, in this order: `recall_memory`, then `propose_readback`, then `confirm_readback`, then `record_decision`. If `record_decision` appears before `propose_readback` for the dose turn, the gate did not hold — strengthen the wording in both tool descriptions and the prompt, and re-run rather than accepting it.
+
+Empty-corpus behaviour, which a judge will deliberately trigger:
+
+```bash
+curl -s -X POST localhost:3000/api/demo/reset -H 'content-type: application/json' -d '{}'
+# reconnect and ask what happened on similar calls; the agent must say it has no prior
+# record and must not cite any displayId
 ```
 
 ## Handoff Note
 
-PHASE-16: if the agent talks and the server log has no `/api/tools/*` hits, the tools are pointed at localhost instead of `PUBLIC_BASE_URL`. PHASE-15: the operator console at `/voice` is what you rehearse; the dashboard at `/` is for judges. Do not skip barge-in to save time — it is an ElevenLabs judging criterion.
+Three things to announce when this passes. The confirmed ElevenLabs field names go in `.ralph/agents.md` so nobody re-researches them. The `agentId` goes into `.env` as both `ELEVENLABS_AGENT_ID` and `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`. And the Twilio upgrade is a 30-minute timebox that starts only after the browser transport carries the full demo end to end — if the timer runs out, say so out loud and stop, because the browser transport is the one that has already been rehearsed.

@@ -255,20 +255,14 @@ export async function failureMemory(query: string, family?: CallTypeFamily): Pro
 
 Returns the known-bad paths that PHASE-08's `Plan` node excludes. Two sources:
 
-- `remediations` filtered to `outcome: "failure"`
+- `remediations` filtered to `outcome: "failure"` — set `Hit.source` to `"remediations"`
 - `postmortems` filtered to `severityDelta > 0`
 
-Same single-pipeline construction: base on `remediations` with its own `$vectorSearch` on `vs_remediations`, `$unionWith` for `postmortems`, fuse with RRF.
+Same single-pipeline construction: base on `remediations` with its own `$vectorSearch` on `vs_remediations`, `$unionWith` for `postmortems`, fuse with RRF using `SOURCE_WEIGHTS` from the contract (`remediations: 1.25`).
 
 **Any code path here that filters to successes violates Critical Rule 8.** The failures are the product. There is a grep-based acceptance criterion for this.
 
-#### Contract gap you must resolve before implementing
-
-`RetrievalSource` in `contracts.md` §6 is `"decisions" | "postmortems" | "runbooks"`. It does not include `"remediations"`, but `failureMemory` returns `Hit[]` and queries `remediations`. There is no honest value for `Hit.source` on a remediation hit, and labelling it `"decisions"` puts a wrong source badge on the dashboard.
-
-Do the contract change rather than the lie: add `"remediations"` to `RetrievalSource` and a weight to `SOURCE_WEIGHTS` (1.25 is a sensible value — between `decisions` at 1.3 and `postmortems` at 1.2 — but pick it deliberately). `SOURCE_WEIGHTS` is typed `Record<RetrievalSource, number>`, so omitting the weight is a compile error, which is a useful forcing function. Follow the project rule: edit `.ralph/contracts.md`, log it in `.ralph/agents.md` under Technical Decisions, then implement.
-
-If you cannot touch `contracts.md` at that moment, the unblocking fallback is to return only postmortem-sourced failure hits and log one loud warning that remediation failures are suppressed pending the contract change. Do not ship the demo that way — the seeded remediations are where the pre-labelled failures live.
+`RetrievalSource` already includes `"remediations"`. Do not invent a different source string and do not fall back to postmortems-only.
 
 The filter paths `outcome` and `severityDelta` must be declared as `filter` fields in the PHASE-02 index definitions. If they are not, apply the same catch-and-post-filter degradation described in `pipeline.ts`, over-fetching `k × 3`.
 

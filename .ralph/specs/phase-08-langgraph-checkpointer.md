@@ -65,7 +65,7 @@ import { MongoDBSaver } from "@langchain/langgraph-checkpoint-mongodb";
 | `scripts/run-graph-local.ts` | `npm run graph:local` |
 | `scripts/kill-resume-drill.ts` | `npm run drill` |
 
-Do not edit `package.json` — `"graph:local"` and `"drill"` already exist in `contracts.md` §12. Do not create `scripts/integrate.ts` or `scripts/smoke.ts`. Do not import `@/lib/memory/decisions`, `@/lib/memory/postmortem`, or `@/lib/memory/epcr` — those are PHASE-09, and cross-phase access goes through the registry, which has no memory port. Graph nodes update `IncidentState` and emit events; they do not insert `DecisionDoc` or `PostmortemDoc` rows.
+Do not edit `package.json` — `"graph:local"` and `"drill"` already exist in `contracts.md` §12. Do not create `scripts/integrate.ts` or `scripts/smoke.ts`. Durable decision and postmortem writes go through `memory()` from the registry (`MemoryPort`, `MEMORY_MODE`). Do not import `@/lib/memory/decisions` directly.
 
 ### Ports consumed
 
@@ -260,7 +260,7 @@ Simulate execution (real execution is on the cut list). Append a timeline entry 
 
 #### `recordDecisionNode`
 
-Append `state.pendingReadback?.utterance ??` the latest medic line onto `decisionsRecorded`. Emit a `decision` event with `rationaleRecorded` true when that text looks like it contains a reason (a `because` / `family reports` / `so that` heuristic is enough). **Do not insert into the `decisions` collection.** PHASE-09 owns `recordDecision`. Duplicating that write here would double-insert on a resume and violate disjoint ownership.
+Append `state.pendingReadback?.utterance ??` the latest medic line onto `decisionsRecorded`. The durable insert is `(await memory()).recordDecision(...)`. Do not import PHASE-09 files directly. Skipping the port and writing here would double-insert on a resume.
 
 #### `awaitInput`
 
@@ -278,7 +278,7 @@ On resume, if `value` is `{ closeRequested: true }` or state already has `closeR
 
 #### `postmortemNode`
 
-Do not call PHASE-09's generator. Append `"postmortem"` to `nodeTrail`, emit a `pcr` event with `preview` taken from a short `llm().text` (or a template) capped at 40 words, and finish. The durable `PostmortemDoc` write is PHASE-09, invoked by PHASE-11 `close_call`. `graph:local --auto-confirm` still "completes a full call including postmortem" because this node runs and `nodeTrail` contains `"postmortem"`.
+On `closeRequested`, call `(await memory()).generateAndWrite(incidentId)` then `draftPcr`. Append `"postmortem"` to `nodeTrail` and emit a `pcr` event with a ≤40-word preview from the draft. The durable `PostmortemDoc` write lives in PHASE-09 behind `MemoryPort`; this node is the caller.
 
 ### `src/lib/graph/compile.ts`
 

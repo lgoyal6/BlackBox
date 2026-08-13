@@ -22,7 +22,7 @@ The ePCR draft is what sells the product to real medics. It is a draft, never a 
 
 - `.ralph/contracts.md` §5 — `DecisionDoc`, `PostmortemDoc`, `IncidentDoc`, `PUBLIC_INCIDENT_PROJECTION`. Implement those document shapes literally. Do not add fields.
 - `.ralph/contracts.md` §4 — `DecisionOutcome`, `MemoryOrigin` (`"live"` is the only origin this phase writes), `callTypeFamily()`, `labelFor()`.
-- `.ralph/contracts.md` §9 — `EmbeddingsPort`, `LlmPort`, `EventsPort`. Consume them through the registry. This phase implements **no** port.
+- `.ralph/contracts.md` §9 — this phase **implements `MemoryPort`**. Default-export it from `src/lib/memory/index.ts`. Consume `EmbeddingsPort`, `LlmPort`, and `EventsPort` through the registry.
 - `.ralph/contracts.md` §10 — `record_decision` acknowledges in 300 ms and writes in the background; `close_call` has an 8-second budget. Keep the writer path inside that budget. Do not create the routes.
 - `.ralph/contracts.md` §11 — `fixtures/utterances.json` (8 medic utterances with expected action/rationale splits) and `fixtures/incidents.json`.
 - `.ralph/contracts.md` §13 — every vector write sets both `embedding` and `embeddedText`; never read `_groundTruth` outside seeding and the closing-metrics script.
@@ -31,7 +31,7 @@ The ePCR draft is what sells the product to real medics. It is a draft, never a 
 - `.ralph/specs/phase-16-integration-cutover.md` — smoke asserts one live decision with a non-empty rationale and one `origin: "live"` postmortem. This phase supplies the functions that make those assertions true; it does not write `scripts/smoke.ts`.
 - `src/lib/fakes/embeddings.ts`, `src/lib/fakes/llm.ts`, `src/lib/fakes/events.ts` — verify against these.
 
-Do not invent a `MemoryPort`, a `ClosePort`, or extra `GraphPort` methods. The functions below are ordinary exports. PHASE-11 will import them from these files; that import is PHASE-11's problem, not a contract change.
+Implement `MemoryPort` as specified in `contracts.md` §9. Default-export the port object from `src/lib/memory/index.ts`. PHASE-08 and PHASE-11 call `memory()` from the registry with `MEMORY_MODE=fake` while they build. Do not tell those phases to import this folder directly.
 
 ## Parallel-Safe Contract
 
@@ -39,11 +39,12 @@ Do not invent a `MemoryPort`, a `ClosePort`, or extra `GraphPort` methods. The f
 
 | Path | Purpose |
 |---|---|
+| `src/lib/memory/index.ts` | Default-export satisfying `MemoryPort` |
 | `src/lib/memory/decisions.ts` | `recordDecision` |
 | `src/lib/memory/postmortem.ts` | `generateAndWrite` |
 | `src/lib/memory/epcr.ts` | `draftPcr`, `renderPcrText` |
 
-`src/lib/memory/` is a shared directory with PHASE-06 (`seed.ts`, `scripts/seed-memory.ts`, `fixtures/curated-postmortems.json`). Create only the three files above. Do not edit `seed.ts`. Do not edit `package.json`. Do not create an `index.ts` barrel in this folder — PHASE-06 does not own one either, and a barrel would become a second owner of the directory's public surface.
+Create the four files above. Do not edit `seed.ts`. Do not edit `package.json`.
 
 ### Ports consumed
 
@@ -54,7 +55,7 @@ Do not invent a `MemoryPort`, a `ClosePort`, or extra `GraphPort` methods. The f
 | `LlmPort` | Live postmortem narrative only | `LLM_MODE=fake` |
 
 ```
-EMBEDDINGS_MODE=fake EVENTS_MODE=fake LLM_MODE=fake
+EMBEDDINGS_MODE=fake EVENTS_MODE=fake LLM_MODE=fake MEMORY_MODE=real
 RETRIEVAL_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
 ```
 
@@ -64,7 +65,7 @@ This phase writes to Atlas, so it needs a reachable cluster. It does not need PH
 
 ### Port implemented
 
-None. Nothing here is resolved through `src/lib/registry.ts`. There is no default-export requirement.
+`MemoryPort`, default-exported from `src/lib/memory/index.ts` (registry path `@/lib/memory`).
 
 ## Files to Create
 
