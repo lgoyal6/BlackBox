@@ -101,6 +101,8 @@ export async function onMemoryWrite(collection: string, count: number): Promise<
 
 `onMemoryWrite` emits `{ kind: "write", incidentId: null, payload: { collection, count } }`. `incidentId` is null because a write counter is global on the dashboard. PHASE-10's `recent(id)` includes `incidentId: null` events for this reason.
 
+**`count` is the collection's absolute total, not a delta — call `col(collection).countDocuments({})` and send that.** PHASE-14's reducer treats `count` as the total for that bucket and applies last-write-wins, because a delta would double-count on every browser reload when the 200-event replay re-delivers the same write events. Sending `1` per insert leaves the counter reading `1` for the whole demo, and those counters are the numbers the presenter points at. An absolute value is also self-healing: a missed event costs one frame instead of a permanently wrong number. One `countDocuments` per insert is free on collections that hold single digits during a demo.
+
 ### `worker/watch.ts`
 
 ```ts
@@ -133,7 +135,7 @@ On each change: read `fullDocument.incidentId`, call `onLiveIncident`, then `sav
 }}
 ```
 
-or three collection watches that share `onMemoryWrite`. Prefer one `getDb().watch(...)` so SIGINT closes one extra cursor rather than three. Count is `1` per insert (the dashboard aggregates). Persist under `watch:writes`.
+or three collection watches that share `onMemoryWrite`. Prefer one `getDb().watch(...)` so SIGINT closes one extra cursor rather than three. Read the collection name from `change.ns.coll` and pass `await col(change.ns.coll).countDocuments({})` as the count — the absolute total, per `onMemoryWrite` above. Persist under `watch:writes`.
 
 **Do not pass `fullDocument: "updateLookup"`.** Inserts already carry `fullDocument`.
 
@@ -182,6 +184,7 @@ Do not start a Next server. Do not import `app/**`.
 - [ ] With `TRIGGER_MODE=changestream` and `GRAPH_MODE=fake`, inserting one `{ isLive: true, incidentId }` document into `incidents` causes a log line `[worker] start <incidentId>` and no polling loop is running (no `poll:` watermark updates)
 - [ ] Inserting an `isLive: false` (historical) incident does **not** call `graph().start`
 - [ ] A second watcher emits a `write` event when a document is inserted into `decisions`, `postmortems`, or `remediations`
+- [ ] That `write` event's `count` equals the collection's current `countDocuments({})`, not `1` — insert two decisions and confirm the second event reports `2`, because PHASE-14 renders `count` as an absolute total
 - [ ] The resume token is written to `_watch_state` under `watch:incidents` after each handled event
 - [ ] An `isLive: true` incident inserted while the worker is stopped is processed after restart, proving `resumeAfter` (or the poll watermark) works — do not rely on "it was still in the oplog by luck" without a persisted token
 - [ ] `TRIGGER_MODE=poll` fires `graph().start` within 3 seconds of an insert

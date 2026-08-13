@@ -25,8 +25,8 @@ Use the Context7 MCP server: `resolve-library-id` for `elevenlabs`, then `query-
 | Create/update agent shape in `@elevenlabs/elevenlabs-js` 2.63.0 | `scripts/setup-agent.ts` cannot be written without it |
 | Server-tool (webhook tool) definition schema: URL, method, headers, parameter schema, timeout field | Seven tools depend on the exact nesting |
 | Turn-taking / interruption configuration keys | Barge-in is mandatory and is a judged criterion |
-| The credential a browser WebRTC session needs, and the SDK call that mints it | `GET /api/voice/signed-url` returns it |
-| `useConversation` options and callbacks in `@elevenlabs/react` 1.12.0, including how session start receives that credential and which accessor exposes input volume | The operator console reads from these |
+| The SDK call that mints a **WebRTC conversation token**, and separately the one that mints a **WebSocket signed URL** | These are two different credentials behind two different routes (see below) |
+| `useConversation` options and callbacks in `@elevenlabs/react` 1.12.0, including how `startSession` receives the token and which accessor exposes input volume | The operator console reads from these |
 | Current lowest-latency TTS model tier identifier | Latency is explicitly judged |
 | Whether the platform exposes a server-side way to inject a message into an in-progress conversation | Decides what `VoicePort.speak` can actually do |
 
@@ -37,8 +37,8 @@ Two conventions throughout this spec: where an exact ElevenLabs field name would
 ## Reference Files (read before implementing)
 
 - `.ralph/overview.md` — **Scope Guardrail** (the hard constraint this prompt encodes), Voice Transport Risk, the ElevenLabs criteria table, How It Operates For A Medic (the three phases the prompt has to support).
-- `.ralph/contracts.md` §10 — the seven tool request shapes and their latency budgets. The agent's tool parameter schemas must match these exactly or the handlers reject the body with a `400` and the agent goes quiet.
-- `.ralph/contracts.md` §9 — `VoicePort`, and the registry rule that the real module default-exports at a fixed path.
+- `.ralph/contracts.md` §10 — the seven tool request shapes and their latency budgets, plus **both** voice routes: `GET /api/voice/signed-url` (WebSocket) and `GET /api/voice/conversation-token` (WebRTC). The agent's tool parameter schemas must match the tool table exactly or the handlers reject the body with a `400` and the agent goes quiet.
+- `.ralph/contracts.md` §9 — `VoicePort` with its three methods (`speak`, `signedUrl`, `conversationToken`), and the registry rule that the real module default-exports at a fixed path.
 - `.ralph/contracts.md` §3 — the three id forms. **Voice always speaks `displayId`, never `incidentId`.**
 - `.ralph/contracts.md` §4 — `CODE_LABELS` and `labelFor()`. The agent never says a raw dispatch code aloud.
 - `.ralph/contracts.md` §5 — `DecisionDoc`, especially the required non-empty `rationale` (Critical Rule 4).
@@ -82,7 +82,7 @@ Until PHASE-11 lands there is a useful stand-in that tests a genuinely different
 
 ### Port implemented
 
-PHASE-13 implements `VoicePort`. Per `contracts.md` §9, it must **default-export an object satisfying `VoicePort` from exactly `src/lib/voice/index.ts`** (registry path `@/lib/voice`). A named export, or the object living in a sibling file with no re-export, makes the registry silently fall back to the fake — and the fake's `speak` only writes to the console, so the failure looks like an agent that has gone mute.
+PHASE-13 implements `VoicePort` — all three methods, `speak`, `signedUrl`, and `conversationToken`. Per `contracts.md` §9, it must **default-export an object satisfying `VoicePort` from exactly `src/lib/voice/index.ts`** (registry path `@/lib/voice`). A named export, or the object living in a sibling file with no re-export, makes the registry silently fall back to the fake — and the fake's `speak` only writes to the console, so the failure looks like an agent that has gone mute.
 
 ### Transport, locked
 
@@ -189,7 +189,9 @@ export function composeReadback(f: {
 
 **`extractRationale`** uses `llm().json()` with a strict schema and the smallest, fastest model available, because it runs inside `record_decision`'s background task and the medic is still talking.
 
-The prompt must state, as a rule rather than a preference, that `rationale` is `null` when the medic gave no reason. **Never invent a rationale.** A fabricated one is worse than none: it puts a made-up justification in the permanent clinical record, which is precisely the harm this project claims to prevent. The empty-rationale path is not an edge case — three of the utterances in `fixtures/utterances.json` have no stated reason, and the correct output for all three is `null`.
+The prompt must state, as a rule rather than a preference, that `rationale` is `null` when the medic gave no reason. **Never invent a rationale.** A fabricated one is worse than none: it puts a made-up justification in the permanent clinical record, which is precisely the harm this project claims to prevent. The empty-rationale path is not an edge case — several of the utterances in `fixtures/utterances.json` have no stated reason, and the correct output for each is `null`.
+
+Do not rely on the prompt alone. **Add a deterministic guard after the call: if the returned `rationale` is not a substring of the utterance (case-insensitive, trimmed), discard it and return `null`.** A model asked not to invent will still occasionally paraphrase a reason into existence, and a paraphrase that does not appear in the medic's own words is indistinguishable from an invention once it is in the database. PHASE-11 applies the same check on its copy.
 
 `protocolConflict` is **not** an extraction output. It defaults to `false` on the written document, and the LLM must not set it: labeling a medic's action as a protocol violation from one sentence is exactly the clinical judgment the scope guardrail forbids.
 
@@ -201,14 +203,16 @@ Confirm: <dose> of <drug>, <route>. Say confirm.
 
 and when no drug/dose/route was supplied, exactly `Confirm: <utterance>. Say confirm.` No LLM ever touches this string, because the agent must speak it verbatim on this turn and an LLM can paraphrase a dose or round a number. Verbatim means verbatim.
 
-**PHASE-11 carries a second copy of this function** in `app/api/tools/_lib/deps.ts`, because a route handler cannot import a module from a phase that may not exist yet. Both specs pin the same assertion so the copies cannot drift:
+**PHASE-11 carries a second copy of both functions** — `composeReadback` in `app/api/tools/_lib/readback.ts` and an `extractDecision` in `app/api/tools/_lib/decision-write.ts` — because a route handler cannot import a module from a phase that may not exist yet. Both specs pin the same readback assertion so the copies cannot drift:
 
 ```ts
 composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })
   === "Confirm: 300 mg of amiodarone, IV push. Say confirm."
 ```
 
-PHASE-11's `record_decision` also soft-imports this module for extraction and validates the result at runtime. **The three field names and the `null` convention are load-bearing across that boundary** — renaming one silently degrades PHASE-11 to its fallback path. If either phase wants a compile-time shared type, the correct move is adding `DecisionExtraction` to `contracts.md` §5 and logging it in `agents.md`, not an import.
+**The three field names and the `null` convention are load-bearing across that boundary,** since the same shape feeds `MemoryPort.recordDecision` from either copy. Renaming one field means two phases disagree about what a decision is. If either phase wants a compile-time shared type, the correct move is adding `DecisionExtraction` to `contracts.md` §5 and logging it in `agents.md`, not an import.
+
+The division of labor is worth stating plainly, because it is not obvious from either file alone: **extraction is duplicated, the database write is not.** `recordDecision` is a port (`contracts.md` §9) that PHASE-09 implements, so both this phase and PHASE-11 hand it an already-split decision and neither writes to `decisions` directly.
 
 ### `src/lib/voice/agent-config.ts`
 
@@ -263,33 +267,40 @@ Descriptions are written **for the model** — when to call it, not what it does
 | Stability | mild — start around 0.35–0.45 and tune by ear | Extreme stability flattens the tone shift the prompt is asking for |
 | Similarity boost | moderate — start around 0.7 | |
 
-### `app/api/voice/signed-url/route.ts`
+### `app/api/voice/conversation-token/route.ts` and `app/api/voice/signed-url/route.ts`
 
 ```ts
+// conversation-token — WebRTC. This is the one app/voice calls.
+export const runtime = "nodejs";
+export async function GET(): Promise<Response>;
+// Response { token: string; agentId: string }
+
+// signed-url — WebSocket.
 export const runtime = "nodejs";
 export async function GET(): Promise<Response>;
 // Response { url: string; agentId: string }
 ```
 
-Mints the browser session credential server-side using `@elevenlabs/elevenlabs-js` and `ELEVENLABS_API_KEY`.
+**Two credentials, two routes, and they are not interchangeable.** `contracts.md` §10 records the reason: a signed URL passed to `startSession({ connectionType: "webrtc" })` **throws** in `@elevenlabs/react` 1.12.0, confirmed against the package's `ConnectionFactory`. Since the locked transport is WebRTC, `conversation-token` is the route the operator console uses and `signed-url` exists for the WebSocket path and for `VoicePort` completeness. Mixing them up produces a connect button that throws on click, which is a bad thing to discover during a rehearsal.
 
-**The ElevenLabs API key never reaches the browser.** Only `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is public. This route exists solely so the key stays server-side, so it must not accept or echo any client-supplied parameter.
+Both mint server-side using `@elevenlabs/elevenlabs-js` and `ELEVENLABS_API_KEY`. Confirm each SDK method name in the docs step — they are different calls.
+
+**The ElevenLabs API key never reaches the browser.** Only `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is public. These routes exist solely so the key stays server-side, so neither may accept or echo a client-supplied parameter.
 
 `500` with `{ error: "ELEVENLABS_API_KEY not configured" }` when the key is missing, and `500` with the provider's status code in the message (never its full body) when the mint call fails.
-
-If the WebRTC transport in `@elevenlabs/react` 1.12.0 wants a conversation token rather than a signed URL, **carry it in `url`** rather than changing the response shape mid-build, and note it in `agents.md`. Only this phase consumes this route, so a contract change would be legitimate — but per rule 10 in `overview.md` it means editing `contracts.md` §10 and announcing it, and a one-line note is cheaper than fourteen agents re-reading the contract.
 
 ### `src/lib/voice/index.ts`
 
 ```ts
 export async function speak(incidentId: string, text: string): Promise<void>;
 export async function signedUrl(): Promise<{ url: string; agentId: string }>;
+export async function conversationToken(): Promise<{ token: string; agentId: string }>;
 
-const voiceAdapter: VoicePort = { speak, signedUrl };
+const voiceAdapter: VoicePort = { speak, signedUrl, conversationToken };
 export default voiceAdapter;
 ```
 
-`signedUrl` shares its implementation with the route handler — the route is a thin wrapper so both paths mint the credential the same way.
+`signedUrl` and `conversationToken` are the implementations; the two route handlers are thin wrappers over them, so there is one minting path per credential rather than two that can drift.
 
 **`speak` needs an honest scope.** With browser WebRTC, the agent's audio is produced inside the ElevenLabs session; a server process cannot push speech into it unless the platform exposes a way to inject a message into a live conversation. That is one of the items to confirm in the docs step.
 
@@ -304,7 +315,7 @@ The operator console. A client component (`"use client"`), deliberately minimal,
 
 Contents:
 
-- A **Connect / Disconnect** button that fetches `/api/voice/signed-url` and starts the session via `useConversation`, passing `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`.
+- A **Connect / Disconnect** button that fetches **`/api/voice/conversation-token`** and starts the session via `useConversation` with `startSession({ connectionType: "webrtc", ... })`, passing `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`. Do not fetch `/api/voice/signed-url` here — a signed URL passed to a WebRTC `startSession` throws in 1.12.0.
 - **Connection state** rendered as text — connecting, connected, disconnected, error — from the hook's status value.
 - A **mic level** meter from whichever input-volume accessor the hook exposes in 1.12.0. Its job is to answer "is the microphone actually live" in one glance, which is the question you will be asking ten seconds before the pitch.
 - The **current incident**: `displayId` and `ref`, plus two buttons calling `POST /api/demo/fire` with `{ pattern: "arrest" }` and `{ pattern: "cardiac" }` so the operator can drive the whole demo from this one screen. That is an HTTP call to PHASE-11, not an import, so it stays inside the ownership rules.
@@ -333,7 +344,7 @@ Behaviour:
 
 - [ ] `npm run typecheck` passes with zero errors
 - [ ] `npm run build` succeeds
-- [ ] `src/lib/voice/index.ts` has a **default export** and `const _check: VoicePort = voiceAdapter;` compiles
+- [ ] `src/lib/voice/index.ts` has a **default export** and `const _check: VoicePort = voiceAdapter;` compiles, with all three methods present — `speak`, `signedUrl`, `conversationToken`
 - [ ] With `VOICE_MODE=real`, `(await voice())` from `@/lib/registry` returns this module with no `FAKE PORT` warning
 - [ ] **Verifiable with all other ports faked:** with `LLM_MODE=fake EVENTS_MODE=fake`, `npx tsx scripts/setup-agent.ts --print-prompt` prints the prompt and exits `0` with no network access
 - [ ] The printed prompt contains the scope guardrail sentence **verbatim**: "You never propose a treatment, drug, dose, or diagnosis."
@@ -343,6 +354,7 @@ Behaviour:
 - [ ] `extractRationale` run over all 8 entries in `fixtures/utterances.json` returns a non-empty `actionChosen` for every one
 - [ ] **`extractRationale` returns `rationale: null` for every fixture utterance that states no reason, and never a fabricated string** — this is the criterion that protects the clinical record
 - [ ] `extractRationale` never returns a `protocolConflict` field
+- [ ] A rationale that does not appear in the utterance is discarded: feed the extractor an utterance with no reason while the fake LLM returns a plausible reason anyway, and the result is `null`
 - [ ] `SERVER_TOOLS` has exactly seven entries whose names are `recall_memory`, `get_protocol`, `log_timeline`, `propose_readback`, `confirm_readback`, `record_decision`, `close_call`
 - [ ] Every tool's parameter set matches its request shape in `contracts.md` §10 — no extra parameters, no missing required ones
 - [ ] Every tool URL is `${PUBLIC_BASE_URL}/api/tools/<name>` and every tool sends `X-BlackBox-Secret`
@@ -351,7 +363,9 @@ Behaviour:
 - [ ] Interruption / barge-in is enabled in the payload, verified by inspecting `--dry-run` output
 - [ ] `scripts/setup-agent.ts` exits non-zero with a `PUBLIC_BASE_URL` that is empty or points at localhost
 - [ ] Running `npm run agent:setup` twice with `ELEVENLABS_AGENT_ID` set updates one agent and creates no second agent
-- [ ] `GET /api/voice/signed-url` returns `{ url, agentId }` with a real key, and `500` with a clear error when the key is absent
+- [ ] `GET /api/voice/conversation-token` returns `{ token, agentId }` with a real key, and `500` with a clear error when the key is absent
+- [ ] `GET /api/voice/signed-url` returns `{ url, agentId }` with a real key
+- [ ] `app/voice/page.tsx` fetches `conversation-token`, not `signed-url` — `rg -n "signed-url" app/voice` returns nothing
 - [ ] **The API key never reaches the browser:** `ELEVENLABS_API_KEY` appears nowhere under `app/voice/` or `src/components/`, and the key's value appears nowhere in the built client bundle under `.next/static`
 - [ ] `/voice` renders, the Connect button starts a session, and the connection state and mic level both change when the microphone is live
 - [ ] **Barge-in works in practice:** speaking over the agent mid-sentence stops its audio within roughly a second
@@ -419,6 +433,7 @@ Create or update the agent, then confirm the key never shipped to the browser:
 
 ```bash
 npm run agent:setup
+curl -s localhost:3000/api/voice/conversation-token | head -c 200
 curl -s localhost:3000/api/voice/signed-url | head -c 200
 grep -rn "ELEVENLABS_API_KEY" app/voice src/lib/voice/tools.ts || echo "clean"
 grep -rl "$ELEVENLABS_API_KEY" .next/static 2>/dev/null || echo "key not in client bundle"

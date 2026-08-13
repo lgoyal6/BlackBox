@@ -88,7 +88,8 @@ Two notes on the storage location:
 The `EventsPort` implementation and the default export the registry loads.
 
 ```ts
-import type { BlackboxEvent, EventsPort } from "@/lib/ports";
+import type { BlackboxEvent } from "@/lib/contracts";
+import type { EventsPort } from "@/lib/ports";
 
 export async function emit(e: Omit<BlackboxEvent, "seq" | "t" | "_id">): Promise<void>;
 export async function recent(incidentId: string | null, n?: number): Promise<BlackboxEvent[]>;

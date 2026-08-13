@@ -356,7 +356,7 @@ npm run typecheck
 npm run build
 
 # All other ports faked. Dev server in one terminal:
-GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake \
+GRAPH_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake EVENTS_MODE=fake \
   LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake npm run dev
 ```
 
