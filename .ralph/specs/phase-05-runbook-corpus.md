@@ -13,6 +13,7 @@ Download the NASEMSO National Model EMS Clinical Guidelines (2022, v3) from the 
 ## Reference Files (read before implementing)
 
 - `.ralph/contracts.md` §5 — `RunbookDoc`. Every field is required, including `pageStart`, `pageEnd`, `chunkIndex`, and `embeddedText`.
+- `.ralph/contracts.md` §14 — `RUNBOOK_CHAPTER_FILTER`, the frozen demo-scale chapter list and its documented fallback. Import it; do not restate the chapter names here.
 - `.ralph/contracts.md` §9 — `EmbeddingsPort`, the only port this phase consumes.
 - `.ralph/contracts.md` §13 — every vector write sets both `embedding` and `embeddedText`.
 - `.ralph/overview.md` — "Runbook corpus — NASEMSO", the 403 on the nasemso.org URL, the Utah mirror and its byte count, and the Scope Guardrail, which is why attribution matters.
@@ -70,6 +71,8 @@ export const MAX_CHUNK_CHARS = 1600;
 export const OVERLAP_CHARS = 200;
 export const MIN_EXPECTED_CHUNKS = 50;
 export const MAX_EXPECTED_CHUNKS = 3000;
+/** Below this many filter matches, section detection has not isolated the chapters. See contracts §14. */
+export const CHAPTER_FILTER_MIN_SECTIONS = 15;
 
 export const ANCHOR_HEADINGS: readonly string[];      // starts a guideline
 export const SUBSECTION_HEADINGS: readonly string[];  // splits within a guideline
@@ -105,6 +108,11 @@ export function chunkSection(
   section: Section,
   opts?: { maxChars?: number; overlapChars?: number },
 ): UnembeddedChunk[];
+
+/** Narrows to contracts §14's chapter list, falling back to all sections. Reports which happened. */
+export function filterChapters(
+  sections: Section[],
+): { sections: Section[]; matched: number; fellBack: boolean };
 
 export function dehyphenate(text: string): string;
 export function collapseBlankLines(text: string): string;
