@@ -11,3 +11,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .vercel
+
+# Local AI-agent state and coordination (never commit assignments/sessions)
+.claude/
+.codex/
+.agent-coordination/
+.gstack/
