@@ -22,7 +22,8 @@ Two latency rules from `contracts.md` §10 are judged criteria, not style prefer
 ## Reference Files (read before implementing)
 
 - `.ralph/contracts.md` §10 — every route, request, response, status code, and latency budget. Implement these literally. Do not invent a route, a field, or a status code.
-- `.ralph/contracts.md` §9 — `RetrievalPort`, `GraphPort`, `EventsPort`, `LlmPort`, `EmbeddingsPort`. Resolve them through `@/lib/registry`. Never import `@/lib/retrieval`, `@/lib/graph`, `@/lib/events`, `@/lib/memory/*`, or `@/lib/voice/*`.
+- `.ralph/contracts.md` §9 — `RetrievalPort`, `MemoryPort`, `GraphPort`, `EventsPort`, `LlmPort`, `EmbeddingsPort`. Resolve them through `@/lib/registry`. Never import `@/lib/retrieval`, `@/lib/graph`, `@/lib/events`, `@/lib/memory/*`, or `@/lib/voice/*` — the port is the boundary, the folder is not.
+- `.ralph/specs/phase-09-memory-writers.md` → Handoff Note — **PHASE-09 implements `MemoryPort` and states that this phase calls it rather than re-implementing inserts.** Every `decisions` and `postmortems` write in this phase goes through `memory()`.
 - `.ralph/contracts.md` §5 — `IncidentDoc`, `PUBLIC_INCIDENT_PROJECTION`, `DecisionDoc`. Agent-facing incident reads must use the projection.
 - `.ralph/contracts.md` §6 — `Hit`, `SPOKEN_WORD_CAP` (40). Every snippet returned to the voice agent is capped.
 - `.ralph/contracts.md` §7 — `PendingReadback`, `ReadbackConfirmation`, `InterruptPayload`. `confirm_readback` resumes with a `ReadbackConfirmation`.
@@ -43,7 +44,7 @@ Two latency rules from `contracts.md` §10 are judged criteria, not style prefer
 | `app/api/tools/_lib/auth.ts` | Shared-secret check |
 | `app/api/tools/_lib/readback.ts` | Deterministic `composeReadback` used by the tool route |
 | `app/api/tools/_lib/handlers.ts` | One function per tool |
-| `app/api/tools/_lib/decision-write.ts` | Background extract + embed + insert for `record_decision` |
+| `app/api/tools/_lib/decision-write.ts` | Background rationale extract, then `MemoryPort.recordDecision`, for `record_decision` |
 | `app/api/demo/fire/route.ts` | Clone a historical incident into a live one |
 | `app/api/demo/close/route.ts` | Request close on a live incident |
 | `app/api/demo/reset/route.ts` | Narrow delete; seeded corpus must survive |
@@ -53,22 +54,26 @@ Two latency rules from `contracts.md` §10 are judged criteria, not style prefer
 
 Create nothing outside `app/api/tools/**`, `app/api/demo/**`, `app/api/state/**`, and `app/api/counters/**`. Do not edit `package.json`. Do not create indexes. Do not add a script.
 
-`src/lib/memory/decisions.ts`, `src/lib/memory/postmortem.ts`, and `src/lib/voice/readback.ts` belong to other phases. **Do not import them.** This phase implements the thin write and the readback formatter in its own `_lib` files so it can pass with those modules absent. Duplication of a ten-line formatter is cheaper than a cross-phase import that breaks parallelism.
+`src/lib/memory/*` and `src/lib/voice/*` belong to other phases. **Never import those folders.** Two different things follow from that, and conflating them is the mistake to avoid:
+
+- **Writes are a port, so use the port.** `MemoryPort` (`contracts.md` §9) covers `recordDecision`, `updateOutcome`, `generateAndWrite`, and `draftPcr`, and `fakes/memory` makes all four work with no database and no PHASE-09. There is no reason to hand-roll an insert, and doing so would produce a second decision writer that skips PHASE-09's rationale guard.
+- **Rationale extraction is not a port,** so this phase carries its own `extractDecision` in `_lib/decision-write.ts`. Same for `composeReadback`, which must byte-match PHASE-13's copy. Duplicating a formatter and a small extractor is cheaper than a cross-phase import that breaks parallelism; duplicating a validated database write is not.
 
 ### Ports consumed
 
 | Port | Used for | Set this to build in isolation |
 |---|---|---|
 | `RetrievalPort` | `recall_memory`, `get_protocol` | `RETRIEVAL_MODE=fake` |
+| `MemoryPort` | `record_decision` write, `close_call` postmortem + ePCR draft | `MEMORY_MODE=fake` |
 | `GraphPort` | `confirm_readback`, `fire` start, `state` | `GRAPH_MODE=fake` |
 | `EventsPort` | timeline / decision / write / status emits | `EVENTS_MODE=fake` |
-| `LlmPort` | background rationale extract; `close_call` draft | `LLM_MODE=fake` |
-| `EmbeddingsPort` | background decision embed | `EMBEDDINGS_MODE=fake` |
+| `LlmPort` | background rationale extract | `LLM_MODE=fake` |
+| `EmbeddingsPort` | `GET /api/counters` → `info()` | `EMBEDDINGS_MODE=fake` |
 
 `VoicePort` is not consumed. Build and verify with:
 
 ```
-GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake
+GRAPH_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake
 ```
 
 The fake graph walks `GRAPH_NODE_ORDER` and raises a `readback` interrupt on the first pass, so `confirm_readback` and `GET /api/state/[incidentId]` are fully testable. The fake retrieval returns `fixtures/hits.json` filtered by substring. The fake LLM returns templated strings. None of that requires PHASE-07, PHASE-08, PHASE-09, or PHASE-13 to exist.
@@ -105,10 +110,19 @@ export function composeReadback(fields: {
 Pure function. **No `llm()` call, no `fetch`, no randomness.** Concatenate the provided fields in a fixed template:
 
 ```
-Confirming {dose} of {drug}, {route}. Say confirm or correct me.
+Confirm: {dose} of {drug}, {route}. Say confirm.
 ```
 
-Omit any clause whose field is missing. If only `utterance` is present, return `Confirming: ${utterance.trim()}. Say confirm or correct me.`
+Omit any clause whose field is missing. If only `utterance` is present, return `Confirm: ${utterance.trim()}. Say confirm.`
+
+**This exact wording is pinned by an identical assertion in PHASE-13's spec,** which owns the canonical copy:
+
+```ts
+composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })
+  === "Confirm: 300 mg of amiodarone, IV push. Say confirm."
+```
+
+Both phases assert that one string, which is what stops the two copies from drifting. Terse wording is not a style choice: this is the sentence the agent says while holding a syringe, and the prompt asks for clipped and staccato when confirming anything irreversible.
 
 **Copy the dose and units character-for-character.** `"1 milligram"` stays `"1 milligram"`. Do not convert to `mg`, do not spell out a digit that arrived as a digit, do not round. This is the aviation-style readback and the LangGraph human-in-the-loop gate. A paraphrase here is a failed acceptance criterion.
 
@@ -135,12 +149,11 @@ export async function writeDecisionInBackground(input: {
 `writeDecisionInBackground` is what `record_decision` fires *after* the response is sent:
 
 1. Load the incident with `PUBLIC_INCIDENT_PROJECTION`. If missing, log `DECISION WRITE FAILED` and return.
-2. Extract. If `rationale` is `null` or whitespace, **do not insert**. Log `DECISION WRITE SKIPPED: empty rationale` and emit nothing. Critical Rule 4: a decision document without a rationale is a bug, and the server-side validator will reject it anyway.
-3. Embed `utterance + actionChosen + rationale` via `(await embeddings()).embedOne(text, "document")`.
-4. Insert one `DecisionDoc` into `col(DECISIONS)` with `outcome: "pending"`, `protocolConflict: false`, `t: new Date()`, and both `embedding` and `embeddedText`.
-5. Emit a `decision` event and a `write` event through `EventsPort`. `emit` never throws (PHASE-10 contract); still do not wrap it in a way that can fail the voice turn — this function already runs after the response.
+2. Extract. If `rationale` is `null` or whitespace, **write nothing.** Log `DECISION WRITE SKIPPED: empty rationale` and emit nothing. Critical Rule 4: a decision document without a rationale is a bug, the port throws on it with a `MISSING_RATIONALE:` prefix, and the server-side validator would reject it anyway. Three layers agree, and this is the first of them.
+3. Call `(await memory()).recordDecision({ incidentId, utterance, actionChosen, rationale, optionsConsidered, outcome: "pending" })` and keep the returned decision id. **The port does the embedding and the insert.** Do not call `embeddings()` here and do not touch `col(DECISIONS)` — PHASE-09 owns that write, sets both `embedding` and `embeddedText`, and enforces the rationale rule in process.
+4. Emit a `decision` event with the returned id and a `write` event through `EventsPort`. `emit` never throws (PHASE-10 contract); still do not wrap it in a way that can fail the voice turn — this function already runs after the response.
 
-Do not import PHASE-09's `recordDecision`. This local writer is how the route stays parallel-safe. PHASE-16's smoke hits this route, not the PHASE-09 module.
+Resolve the writer through `memory()` from the registry, never by importing `@/lib/memory/decisions`. With `MEMORY_MODE=fake` the whole path runs with no database, so parallel-safety costs nothing here. PHASE-16's smoke hits this route, and the route hits the port.
 
 ### `app/api/tools/_lib/handlers.ts`
 
@@ -170,21 +183,21 @@ Unknown `tool` values return `{ status: 404, json: { error: "unknown tool" } }`.
 |---|---|---|---|
 | `recall_memory` | `retrieval().fanOut(query, { callTypeFamily })` | `{ summary, spoken, hits }` | 400 ms warm |
 | `get_protocol` | `retrieval().fanOut(topic)` then first `source === "runbooks"` hit | `{ spoken, text, sectionTitle, pageStart }` | 400 ms warm |
-| `log_timeline` | `$push` a `TimelineEntry` on the incident; emit `voice` if source is medic/agent | `{ ok: true }` | 150 ms |
+| `log_timeline` | `$push` a `TimelineEntry` on the incident; emit `voice` if source is medic/agent, plus a `write` for the `timeline` bucket | `{ ok: true }` | 150 ms |
 | `propose_readback` | `composeReadback` only | `{ readbackText }` | 300 ms, **no LLM** |
 | `confirm_readback` | `graph().resume(incidentId, { confirmed, verbatimOk })` | `{ ok, resumedAt }` | 500 ms |
 | `record_decision` | ack, then `queueMicrotask` / `setImmediate` the background write | `{ ok: true, ack }` | 300 ms to ack |
-| `close_call` | `graph().resume` with close, or a local postmortem draft via `llm().text` if the graph returns nothing | `{ postmortemId, pcrPreview }` | 8 s |
+| `close_call` | `memory().generateAndWrite(incidentId)` then `memory().draftPcr(incidentId)` | `{ postmortemId, pcrPreview }` | 8 s |
 
 Details that are easy to get wrong:
 
 - **`recall_memory`.** `summary` is one sentence, ≤ 25 words, built from the top hit's `spoken` or the literal `new signature, no prior history` when `hits` is empty. Cap every `hits[i].spoken` at `SPOKEN_WORD_CAP` before returning. Emit a `retrieval` event. Never read `_groundTruth`.
 - **`get_protocol`.** If no runbook hit exists, return `{ spoken: "No matching protocol section.", text: "", sectionTitle: "", pageStart: 0 }` with status 200, not 404. A missing guideline is a normal retrieval miss, not a missing route. Attribute in `spoken`: prefix `From NASEMSO, ` so the agent has attribution to read aloud.
-- **`log_timeline`.** `$push` `{ t: new Date(), source, text }`. Reject `source` values outside `"medic" | "agent" | "system"` via the Zod schema, not a runtime check after the write.
+- **`log_timeline`.** `$push` `{ t: new Date(), source, text }`. Reject `source` values outside `"medic" | "agent" | "system"` via the Zod schema, not a runtime check after the write. Then emit a `write` event with `collection: "timeline"` and `count` set to the incident's **timeline array length after the push**. `reference.png` shows a `timeline` write tile and there is no `timeline` collection, so `write.payload.collection` is a display bucket and this handler is the only thing that can produce that bucket — PHASE-12's change stream watches collections, and `GET /api/counters` counts collections. Without this emit, the counter PHASE-14 renders stays at zero all demo. Send the absolute length, not a delta, because PHASE-14 treats `count` as a total so the 200-event replay stays idempotent.
 - **`propose_readback`.** Call `composeReadback` and return. Grep the handler file for `llm` and `embeddings` — both must be absent. Optionally emit a `readback` event with `state: "awaiting"`.
 - **`confirm_readback`.** `resumedAt` is `result.interrupt === null ? "execute_record" : result.interrupt.type === "readback" ? "readback_gate" : null` mapped onto `GraphNode | null`. Emit `readback` with `state: "confirmed" | "rejected"`.
 - **`record_decision`.** `ack` is the fixed string `Recorded.` Return before the insert. The document must appear in `decisions` within 3 seconds when rationale is extractable.
-- **`close_call`.** Set `closeRequested` by resuming the graph with `{ close: true }` if that is what the fake accepts; otherwise write a live postmortem via `llm().text` capped at 200 words, embed it, insert with `origin: "live"`, and emit `pcr` + `write`. Never read `_groundTruth` to fill `whatChanged`.
+- **`close_call`.** `memory().generateAndWrite(incidentId)` returns the live postmortem id, then `memory().draftPcr(incidentId)` returns `{ text }`; `pcrPreview` is that text truncated for the dashboard. Set the incident `status: "closed"`, then emit `pcr`, `status`, and `write`. The port writes the postmortem with `origin: "live"`, which is what lets `/api/demo/reset` delete it without touching the seeded corpus — those two routes are coupled through that one field. Do not draft the narrative with `llm().text` here and do not insert into `col(POSTMORTEMS)`; PHASE-09 owns both, its close path is `generateAndWrite` then `draftPcr`, and with `MEMORY_MODE=fake` that path returns in milliseconds. Never read `_groundTruth` to fill `whatChanged`. This is the only route allowed past one second, and the agent covers the wait by saying it is drafting the report.
 
 ### `app/api/tools/[tool]/route.ts`
 
@@ -315,9 +328,13 @@ export async function GET(): Promise<Response>;
 - [ ] `params` is awaited in both `[tool]` and `[incidentId]` routes — `rg -n "params: Promise" app/api` finds both, and `rg -n "params.tool|params.incidentId" app/api` finds nothing that is not after an `await`
 - [ ] Every handler file exports `runtime = "nodejs"`
 - [ ] `propose_readback` with `{ utterance, drug: "epinephrine", dose: "1 milligram", route: "IV" }` returns a `readbackText` containing the substrings `1 milligram`, `epinephrine`, and `IV`, and finishes in under 300 ms
+- [ ] `composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })` returns exactly `Confirm: 300 mg of amiodarone, IV push. Say confirm.` — the same assertion PHASE-13 runs against its own copy
 - [ ] `rg -n "llm|embeddings|openai" app/api/tools/_lib/readback.ts app/api/tools/_lib/handlers.ts` does not match `propose_readback`'s code path (no LLM import in `readback.ts`; `handlers.ts` must not call `llm()` inside the `propose_readback` branch)
 - [ ] `record_decision` returns `{ ok: true, ack: string }` in under 300 ms, and when the utterance contains a reason, a `decisions` document with a non-empty `rationale` appears within 3 seconds
-- [ ] `record_decision` with an utterance that has no reason inserts **zero** documents
+- [ ] `record_decision` with an utterance that has no reason inserts **zero** documents and logs `DECISION WRITE SKIPPED: empty rationale`
+- [ ] **Every decision and postmortem write goes through the port:** `rg -n "col\((DECISIONS|POSTMORTEMS)\)|embedOne" app/api` finds no insert or embed call, and `record_decision` still produces a decision under `MEMORY_MODE=fake` (assert via the fake's recorded calls) and under `MEMORY_MODE=real` (assert the document)
+- [ ] `close_call` returns a `postmortemId` and a non-empty `pcrPreview` with `MEMORY_MODE=fake`, in under 8 seconds
+- [ ] `log_timeline` emits a `write` event with `collection: "timeline"` whose `count` equals the incident's timeline length after the push, and the count increases by one on a second call
 - [ ] `recall_memory` and `get_protocol` return in under 400 ms warm against fake retrieval, and every `spoken` field is 40 words or fewer
 - [ ] `confirm_readback` with `{ confirmed: true, verbatimOk: true }` returns `ok: true` and a subsequent `GET /api/state/[incidentId]` no longer sits at `readback_gate` when the fake graph is used
 - [ ] `POST /api/demo/fire` with `{ pattern: "arrest" }` returns `{ incidentId, ref, displayId }` and inserts one `isLive: true` incident whose `cad.initialCallType` is `UNC` and which has **no** `_groundTruth` field
@@ -326,7 +343,7 @@ export async function GET(): Promise<Response>;
 - [ ] **Seeded corpus survives reset:** `postmortems` with `origin: "seeded"` ≥ 30 (or unchanged if the cluster is below the floor), `runbooks` ≥ 30 (or unchanged), historical `incidents` (`isLive: false`) unchanged. Assert counts before and after. Do not use the old warehouse numbers (2000 / 300).
 - [ ] `GET /api/state/[incidentId]` returns `{ values, next, checkpointCount }`
 - [ ] `GET /api/counters` returns `counts`, `checkpointCount`, and `embedding`
-- [ ] **Verifiable with all other ports faked:** the fire → propose_readback → confirm_readback → record_decision → close → reset path succeeds with `GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake`
+- [ ] **Verifiable with all other ports faked:** the fire → propose_readback → confirm_readback → record_decision → close → reset path succeeds with `GRAPH_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake`
 - [ ] No file was created or modified outside this phase's four `app/api/*` trees
 - [ ] `rg -n "_groundTruth" app/api` returns no read of that field except the historical-source filter inside `clone.ts`
 
