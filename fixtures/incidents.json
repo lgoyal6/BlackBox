@@ -1,0 +1,194 @@
+[
+  {
+    "incidentId": "16975942",
+    "displayId": "5942",
+    "ref": "240315-5942",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "UNC",
+      "initialSeverityLevelCode": 3,
+      "borough": "BROOKLYN",
+      "zipcode": "11201",
+      "dispatchArea": "B3",
+      "unit": "14B",
+      "incidentDatetime": "2024-03-15T02:18:00.000Z"
+    },
+    "callTypeFamily": "altered",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "ARREST",
+      "finalSeverityLevelCode": 1,
+      "severityDelta": 2,
+      "incidentCloseDatetime": "2024-03-15T02:54:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": false,
+      "dispatchResponseSeconds": 412,
+      "incidentResponseSeconds": 501,
+      "incidentTravelSeconds": 180,
+      "incidentTotalSeconds": 681
+    },
+    "createdAt": "2024-03-15T02:18:00.000Z",
+    "updatedAt": "2024-03-15T02:54:00.000Z"
+  },
+  {
+    "incidentId": "16974471",
+    "displayId": "4471",
+    "ref": "240208-4471",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "UNC",
+      "initialSeverityLevelCode": 2,
+      "borough": "BROOKLYN",
+      "zipcode": "11217",
+      "dispatchArea": "B3",
+      "unit": "11A",
+      "incidentDatetime": "2024-02-08T03:41:00.000Z"
+    },
+    "callTypeFamily": "altered",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "ARREST",
+      "finalSeverityLevelCode": 1,
+      "severityDelta": 1,
+      "incidentCloseDatetime": "2024-02-08T04:22:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": true,
+      "dispatchResponseSeconds": 388,
+      "incidentResponseSeconds": 460,
+      "incidentTravelSeconds": 200,
+      "incidentTotalSeconds": 660
+    },
+    "createdAt": "2024-02-08T03:41:00.000Z",
+    "updatedAt": "2024-02-08T04:22:00.000Z"
+  },
+  {
+    "incidentId": "16972208",
+    "displayId": "2208",
+    "ref": "240511-2208",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "SICK",
+      "initialSeverityLevelCode": 6,
+      "borough": "BROOKLYN",
+      "zipcode": "11215",
+      "dispatchArea": "B3",
+      "unit": "22C",
+      "incidentDatetime": "2024-05-11T04:09:00.000Z"
+    },
+    "callTypeFamily": "general",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "CARD",
+      "finalSeverityLevelCode": 2,
+      "severityDelta": 4,
+      "incidentCloseDatetime": "2024-05-11T04:51:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": false,
+      "dispatchResponseSeconds": 640,
+      "incidentResponseSeconds": 710,
+      "incidentTravelSeconds": 240,
+      "incidentTotalSeconds": 950
+    },
+    "createdAt": "2024-05-11T04:09:00.000Z",
+    "updatedAt": "2024-05-11T04:51:00.000Z"
+  },
+  {
+    "incidentId": "16973301",
+    "displayId": "3301",
+    "ref": "240627-3301",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "SICK",
+      "initialSeverityLevelCode": 5,
+      "borough": "MANHATTAN",
+      "zipcode": "10009",
+      "dispatchArea": "M2",
+      "unit": "7D",
+      "incidentDatetime": "2024-06-27T01:22:00.000Z"
+    },
+    "callTypeFamily": "general",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "CARD",
+      "finalSeverityLevelCode": 3,
+      "severityDelta": 2,
+      "incidentCloseDatetime": "2024-06-27T02:01:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": false,
+      "dispatchResponseSeconds": 598,
+      "incidentResponseSeconds": 672,
+      "incidentTravelSeconds": 210,
+      "incidentTotalSeconds": 882
+    },
+    "createdAt": "2024-06-27T01:22:00.000Z",
+    "updatedAt": "2024-06-27T02:01:00.000Z"
+  },
+  {
+    "incidentId": "16971001",
+    "displayId": "1001",
+    "ref": "240104-1001",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "SICK",
+      "initialSeverityLevelCode": 6,
+      "borough": "QUEENS",
+      "zipcode": "11354",
+      "dispatchArea": "Q1",
+      "unit": "4A",
+      "incidentDatetime": "2024-01-04T14:10:00.000Z"
+    },
+    "callTypeFamily": "general",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "SICK",
+      "finalSeverityLevelCode": 6,
+      "severityDelta": 0,
+      "incidentCloseDatetime": "2024-01-04T14:38:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": false,
+      "dispatchResponseSeconds": 720,
+      "incidentResponseSeconds": 790,
+      "incidentTravelSeconds": 190,
+      "incidentTotalSeconds": 980
+    },
+    "createdAt": "2024-01-04T14:10:00.000Z",
+    "updatedAt": "2024-01-04T14:38:00.000Z"
+  },
+  {
+    "incidentId": "16970102",
+    "displayId": "0102",
+    "ref": "240812-0102",
+    "status": "closed",
+    "cad": {
+      "initialCallType": "UNC",
+      "initialSeverityLevelCode": 2,
+      "borough": "BRONX",
+      "zipcode": "10451",
+      "dispatchArea": "X3",
+      "unit": "9B",
+      "incidentDatetime": "2024-08-12T09:05:00.000Z"
+    },
+    "callTypeFamily": "altered",
+    "timeline": [],
+    "isLive": false,
+    "_groundTruth": {
+      "finalCallType": "UNC",
+      "finalSeverityLevelCode": 2,
+      "severityDelta": 0,
+      "incidentCloseDatetime": "2024-08-12T09:40:00.000Z",
+      "incidentDispositionCode": "82",
+      "reopenIndicator": false,
+      "dispatchResponseSeconds": 401,
+      "incidentResponseSeconds": 455,
+      "incidentTravelSeconds": 165,
+      "incidentTotalSeconds": 620
+    },
+    "createdAt": "2024-08-12T09:05:00.000Z",
+    "updatedAt": "2024-08-12T09:40:00.000Z"
+  }
+]

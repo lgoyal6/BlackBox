@@ -1,0 +1,80 @@
+[
+  {
+    "incidentId": "16974471",
+    "displayId": "4471",
+    "narrative": "We were dispatched for an unconscious patient in B3 and found him pulseless on arrival. Compressions started immediately. The nearest facility was on diversion; we lost eleven minutes before routing to the second closest. We should have confirmed receiving status before committing.",
+    "whatChanged": "UNC → ARREST",
+    "severityDelta": 1,
+    "lessons": ["Confirm receiving facility status before committing to a destination.", "Do not let a diversion cost double-digit minutes."],
+    "origin": "curated",
+    "callTypeFamily": "altered",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-02-08T04:22:00.000Z"
+  },
+  {
+    "incidentId": "16975942",
+    "displayId": "5942",
+    "narrative": "We arrived to an unresponsive adult after an unconscious dispatch. There was no radial pulse, so we started compressions on the floor. Family mentioned recent neck surgery, and we deferred a supraglottic airway for that reason rather than forcing it.",
+    "whatChanged": "UNC → ARREST",
+    "severityDelta": 2,
+    "lessons": ["Record the rationale when deferring an airway.", "Unconscious dispatches can be arrests on arrival."],
+    "origin": "seeded",
+    "callTypeFamily": "altered",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-03-15T02:54:00.000Z"
+  },
+  {
+    "incidentId": "16972208",
+    "displayId": "2208",
+    "narrative": "This came over as general illness. The patient was diaphoretic with a weak radial pulse, and we treated it as occult cardiac rather than a routine sick call. He arrested during packaging. We should have said that out loud sooner.",
+    "whatChanged": "SICK → CARD",
+    "severityDelta": 4,
+    "lessons": ["A sick dispatch can still be a cardiac event.", "Say the concern out loud when vitals disagree with the call type."],
+    "origin": "seeded",
+    "callTypeFamily": "general",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-05-11T04:51:00.000Z"
+  },
+  {
+    "incidentId": "16973301",
+    "displayId": "3301",
+    "narrative": "We were sent for general illness overnight and found a pale, sweaty patient. We skipped the closest house and went to a cardiac facility. He arrested in the bay. The extra minutes were the right trade.",
+    "whatChanged": "SICK → CARD",
+    "severityDelta": 2,
+    "lessons": ["Route occult cardiac to a cardiac facility, not the closest door."],
+    "origin": "seeded",
+    "callTypeFamily": "general",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-06-27T02:01:00.000Z"
+  },
+  {
+    "incidentId": "16971001",
+    "displayId": "1001",
+    "narrative": "This stayed a general-illness call from dispatch through transfer of care. Vitals were stable, the story matched, and we documented the negative findings so the next crew would see that not every sick call hides a cardiac event.",
+    "whatChanged": "SICK → SICK",
+    "severityDelta": 0,
+    "lessons": ["Negative findings are still worth writing down."],
+    "origin": "seeded",
+    "callTypeFamily": "general",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-01-04T14:38:00.000Z"
+  },
+  {
+    "incidentId": "16970102",
+    "displayId": "0102",
+    "narrative": "Unconscious on dispatch, still unconscious at the hospital, never an arrest. We kept the airway simple, checked glucose, and handed off a short timeline. Not every unconscious call is a cardiac event, and that is worth remembering too.",
+    "whatChanged": "UNC → UNC",
+    "severityDelta": 0,
+    "lessons": ["Unconscious is not automatically arrest."],
+    "origin": "seeded",
+    "callTypeFamily": "altered",
+    "embedding": [],
+    "embeddedText": "",
+    "t": "2024-08-12T09:40:00.000Z"
+  }
+]

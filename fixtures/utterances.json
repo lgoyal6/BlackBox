@@ -1,0 +1,42 @@
+[
+  {
+    "utterance": "Skipping the supraglottic, family says recent neck surgery.",
+    "actionChosen": "deferred supraglottic airway",
+    "rationale": "family reports recent neck surgery"
+  },
+  {
+    "utterance": "Patient unresponsive, no radial pulse, starting compressions.",
+    "actionChosen": "start chest compressions",
+    "rationale": "unresponsive with no radial pulse"
+  },
+  {
+    "utterance": "Nearest house is on diversion, going to the second closest.",
+    "actionChosen": "route to second closest facility",
+    "rationale": "nearest facility is on diversion"
+  },
+  {
+    "utterance": "Epinephrine, 1 milligram, IV push.",
+    "actionChosen": "epinephrine 1 mg IV push",
+    "rationale": null
+  },
+  {
+    "utterance": "Starting a line.",
+    "actionChosen": "establish IV access",
+    "rationale": null
+  },
+  {
+    "utterance": "Holding off on the tube.",
+    "actionChosen": "defer intubation",
+    "rationale": null
+  },
+  {
+    "utterance": "Calling for ALS intercept because we are ten minutes out with no pulse.",
+    "actionChosen": "request ALS intercept",
+    "rationale": "ten minutes out with no pulse"
+  },
+  {
+    "utterance": "Transfer of care, we're at the bay.",
+    "actionChosen": "transfer of care",
+    "rationale": "arrived at the bay"
+  }
+]

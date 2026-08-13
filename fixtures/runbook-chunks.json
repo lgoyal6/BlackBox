@@ -1,0 +1,46 @@
+[
+  {
+    "source": "NASEMSO-2022-v3",
+    "sectionTitle": "Adult Cardiac Arrest",
+    "sectionPath": ["Cardiovascular", "Adult Cardiac Arrest"],
+    "text": "Begin high-quality chest compressions immediately. Minimize interruptions. Advanced airway placement is not required to start resuscitation and should be deferred when contraindications such as known neck trauma or recent neck surgery are present.",
+    "pageStart": 88,
+    "pageEnd": 91,
+    "chunkIndex": 0,
+    "embedding": [],
+    "embeddedText": ""
+  },
+  {
+    "source": "NASEMSO-2022-v3",
+    "sectionTitle": "Airway Management",
+    "sectionPath": ["Airway", "Airway Management"],
+    "text": "Supraglottic airway devices are contraindicated in known esophageal disease. Use caution after recent neck surgery. Confirm placement and continue compressions with minimal pause.",
+    "pageStart": 41,
+    "pageEnd": 44,
+    "chunkIndex": 0,
+    "embedding": [],
+    "embeddedText": ""
+  },
+  {
+    "source": "NASEMSO-2022-v3",
+    "sectionTitle": "Altered Mental Status",
+    "sectionPath": ["Altered", "Altered Mental Status"],
+    "text": "For unconscious or unresponsive patients, consider cardiac, toxicologic, and neurologic causes in parallel. Do not treat the dispatch code as a diagnosis.",
+    "pageStart": 112,
+    "pageEnd": 114,
+    "chunkIndex": 0,
+    "embedding": [],
+    "embeddedText": ""
+  },
+  {
+    "source": "NASEMSO-2022-v3",
+    "sectionTitle": "Toxicology and Overdose",
+    "sectionPath": ["Toxicology", "Overdose"],
+    "text": "Opioid overdose may present as unconscious with pinpoint pupils. Naloxone does not replace airway and ventilation. Continue to reassess after each dose.",
+    "pageStart": 201,
+    "pageEnd": 204,
+    "chunkIndex": 0,
+    "embedding": [],
+    "embeddedText": ""
+  }
+]
