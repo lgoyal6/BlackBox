@@ -231,7 +231,7 @@ export interface RunbookDoc {
   text: string;
   pageStart: number;
   pageEnd: number;
-  chunkIndex: number;
+  chunkIndex: number;               // 0-based within this guideline; a single-chunk guideline is 0
   embedding: number[];
   embeddedText: string;
 }
@@ -395,6 +395,9 @@ export interface EmbeddingsPort {
 export interface RetrievalPort {
   fanOut(query: string, opts?: { kPerSource?: number; limit?: number;
                                  callTypeFamily?: CallTypeFamily }): Promise<Hit[]>;
+  // callTypeFamily filters only collections that declare it on the vector index:
+  // decisions, remediations, postmortems. Never the runbooks $unionWith leg —
+  // RunbookDoc has no callTypeFamily field, and an undeclared filter path errors.
   signatureMatch(incident: IncidentDoc): Promise<SignatureMatch | null>;
   failureMemory(query: string, family?: CallTypeFamily): Promise<Hit[]>;
   reclassPrior(initialCallType: string, dispatchArea?: string): Promise<ReclassPrior | null>;
@@ -564,7 +567,7 @@ PHASE-01 creates `package.json` with **all** of these, including scripts whose t
 - **Dates are `Date`.** The Mongo client is constructed so dates round-trip as UTC. Never store an ISO string in a date field.
 - **`mongodb` must be in `serverExternalPackages`** in `next.config.ts`, along with `unpdf` for PHASE-05.
 - **Every vector write sets both `embedding` and `embeddedText`.** The text is what makes retrieval debuggable at hour seven.
-- **`EMBEDDING_DIM` must equal every vector index's `numDimensions`.** A mismatch returns zero results with no error — the single most expensive failure mode in this build. Assert it at both write and index-creation time.
+- **`EMBEDDING_PROVIDER` is env-selected. No automatic failover.** Switching Voyage → OpenAI changes `EMBEDDING_DIM` and requires rebuilding vector indexes.
 - **Never construct `MemorySaver`.** `MongoDBSaver` only, everywhere.
 - **Never read `_groundTruth`** outside seeding scripts and the closing metrics script.
 - **Never download the NYC bulk CSV.** Atlas holds the demo slice in §14. City-wide numbers come from Socrata `COUNT` aggregates only.

@@ -219,6 +219,8 @@ export async function fanOutFrom(
 
 `fanOut` calls `fanOutFrom(query, [...FAN_OUT_COLLECTIONS], opts)`. Defaults: `kPerSource` 8, `limit` 12.
 
+When `opts.callTypeFamily` is set, pass it as a vector `filter` on the **decisions and postmortems legs only**. Do not send it on the runbooks `$unionWith` — `RunbookDoc` has no `callTypeFamily`, `vs_runbooks` does not declare that filter path, and Atlas errors the whole pipeline.
+
 Embed the query with `(await embeddings()).embedOne(query, "query")` — the `"query"` input type, not `"document"`. Voyage embeds the two asymmetrically and using the wrong one costs measurable recall for no reason.
 
 ### `src/lib/retrieval/signature.ts`

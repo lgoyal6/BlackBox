@@ -298,7 +298,7 @@ Keep it visually calm. Emergency dashboards pull hard toward flashing red and si
 3. **The agent never proposes clinical treatment.** It reads back what the medic said or quotes retrieved guidance with attribution. No exceptions for demo polish.
 4. **Every decision document must carry a non-empty `rationale`,** enforced by both the writer and a server-side JSON Schema validator.
 5. **Never seed the `decisions` collection.** It fills live during the demo, on stage.
-6. **Strip the answers from `incidents` on ingest.** `final_call_type`, `final_severity_level_code`, and `incident_close_datetime` live only under `_ground_truth`, which no retrieval path or graph node may read.
+6. **Strip the answers from `incidents` on ingest.** `final_call_type`, `final_severity_level_code`, and `incident_close_datetime` live only under `_groundTruth` (camelCase, matching `IncidentDoc`). No retrieval path or graph node may read it.
 7. **`incident_id` is the identifier, not `CAD_INCIDENT_ID`.**
 8. **Failures are first-class.** Any code path that filters `remediations` to successes only is wrong.
 9. **Own only your phase's files.** Cross-phase access goes through `src/lib/registry.ts`. Never import another phase's module directly.

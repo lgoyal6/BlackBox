@@ -84,7 +84,10 @@
 - **An agent that sounds right but never called a tool.** Indistinguishable from a working system until a judge asks what happens when the database is empty, and it is exactly the "TTS layer reading pre-generated text" that the Agentic Depth criterion filters out. Verify tool invocations in the server log, not just that speech happened.
 - **A port silently resolving to a fake.** The registry logs `FAKE PORT`; the preflight greps for it and fails. At hour seven somebody will otherwise demo something that ran entirely on fakes.
 - **A fabricated rationale.** Worse than no rationale: it puts a made-up justification in a permanent clinical record, which is the exact harm this project claims to prevent. Return `null` and let the agent ask.
-- **Never download the NYC bulk CSV.** Atlas holds ~180 incident documents. City-wide statistics are four Socrata `COUNT` queries cached to `data/pitch-numbers.json`. The CSV is gigabytes and will eat the afternoon.
+- **`_groundTruth` is camelCase**, matching `IncidentDoc`. `overview.md` used to write `_ground_truth`; the contract spelling wins. `PUBLIC_INCIDENT_PROJECTION` excludes that field.
+- **No automatic embedding-provider failover.** `EMBEDDING_PROVIDER` is env-selected. Falling through from Voyage to OpenAI mid-run changes the vector dimension from 1024 to 1536 and silently empties `$vectorSearch`. Switch providers only by changing env and rebuilding the indexes.
+- **`fanOut`'s `callTypeFamily` filter does not apply to runbooks.** `RunbookDoc` has no such field. PHASE-07 must omit it from the runbooks `$unionWith` leg or the pipeline errors.
+- **`RunbookDoc.chunkIndex` is 0-based within its guideline.** A single-chunk guideline is always `0`. `(sectionTitle, chunkIndex)` is unique.
 
 ## Technical Decisions Log
 
