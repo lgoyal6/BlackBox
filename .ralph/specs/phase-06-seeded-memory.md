@@ -1,6 +1,6 @@
 # Phase 06 — Seeded Memory (postmortems + remediations)
 
-**Status:** PENDING
+**Status:** COMPLETE
 **Tasks:** US-010, US-011
 **Depends on:** PHASE-01 only (contracts + fakes)
 **Budget:** 30 min

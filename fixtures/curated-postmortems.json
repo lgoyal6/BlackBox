@@ -1,0 +1,35 @@
+{
+  "note": "Curated demo narratives. The receiving-facility diversion detail is SYNTHETIC; the NYC EMS dataset has no diversion field. Every other number in these narratives (costMinutes, response seconds, incidentId, displayId) is derived from a real ingested incident at seed time.",
+  "entries": [
+    {
+      "id": "diversion-b3",
+      "select": { "initialCallType": "UNC", "finalCallType": "ARREST", "dispatchArea": "B3" },
+      "narrativeTemplate": "We were dispatched for an {{label}} in {{dispatchArea}} on incident {{displayId}} and found him pulseless on arrival. Compressions started on the floor before we ever moved the stretcher. The nearest receiving facility was on diversion; confirming that and rerouting cost {{costMinutes}} minutes against the family median. That delay is the number we should have prevented by asking about receiving status before we committed to a door. We treated the scene as the dispatch type at first and corrected once there was no pulse. Handling this as {{label}} is the path we would not take again.",
+      "lessons": [
+        "Confirm receiving facility status before committing to a destination.",
+        "Do not let a diversion cost double-digit minutes."
+      ],
+      "whatChangedTemplate": "{{initialCallType}} → {{finalCallType}}"
+    },
+    {
+      "id": "diversion-sick-b3",
+      "select": { "initialCallType": "SICK", "finalCallType": "CARD", "dispatchArea": "B3" },
+      "narrativeTemplate": "We were sent for {{label}} in {{dispatchArea}} on incident {{displayId}} and the scene did not match a routine sick call. The nearest receiving facility was on diversion, and confirming that before we rolled cost {{costMinutes}} minutes against the family median. We skipped the diverted door and went to a cardiac facility instead of the closest house. He looked pale and sweaty; that was the tell that the dispatch label was wrong. Handling this as {{label}} is the path that failed us. The close type was {{finalCallType}} after a {{initialCallType}} dispatch.",
+      "lessons": [
+        "A sick dispatch can still be a cardiac event.",
+        "Confirm receiving facility status before committing to a destination."
+      ],
+      "whatChangedTemplate": "{{initialCallType}} → {{finalCallType}}"
+    },
+    {
+      "id": "diversion-sick-m2",
+      "select": { "initialCallType": "SICK", "finalCallType": "CARD", "dispatchArea": "M2" },
+      "narrativeTemplate": "Overnight in {{dispatchArea}} we were dispatched for {{label}} on incident {{displayId}}. The patient was pale and diaphoretic, and we treated it as occult cardiac rather than a routine sick call. The nearest house was on diversion; rerouting cost {{costMinutes}} minutes against the family median, and we spent those minutes on the extra ride to a cardiac facility. That trade was the routing decision, not a guess about treatment. Handling this as {{label}} is the path we would not repeat. Closed as {{finalCallType}} after a {{initialCallType}} dispatch.",
+      "lessons": [
+        "Route occult cardiac to a cardiac facility, not the closest door.",
+        "Diversion status belongs in the brief before the wheels roll."
+      ],
+      "whatChangedTemplate": "{{initialCallType}} → {{finalCallType}}"
+    }
+  ]
+}

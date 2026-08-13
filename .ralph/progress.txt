@@ -16,12 +16,12 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 
 ## Phase Status Overview
 
-- PHASE-01 (Contracts, Scaffold, Ports, and Fakes): PENDING  ← blocks everything, start here
-- PHASE-02 (Collections, Validators, and Vector Indexes): PENDING
-- PHASE-03 (Embeddings Provider): PENDING
-- PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): PENDING
-- PHASE-05 (NASEMSO Runbook Corpus): PENDING
-- PHASE-06 (Seeded Memory): PENDING
+- PHASE-01 (Contracts, Scaffold, Ports, and Fakes): COMPLETE
+- PHASE-02 (Collections, Validators, and Vector Indexes): IMPLEMENTED — 3/4 `vs_*` READY on M0; `vs_postmortems` blocked until Flex
+- PHASE-03 (Embeddings Provider): COMPLETE
+- PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): COMPLETE
+- PHASE-05 (NASEMSO Runbook Corpus): COMPLETE — 183 real Voyage docs on Atlas; `vs_runbooks` READY
+- PHASE-06 (Seeded Memory): COMPLETE — 40 seeded + 3 curated on Atlas; decisions=0
 - PHASE-07 (Three-Collection Fan-Out Retrieval): PENDING
 - PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): PENDING
 - PHASE-09 (Decision Capture, Postmortem, ePCR Draft): PENDING
@@ -72,6 +72,31 @@ transport works.
 
 ## Iteration Log
 
+## Phase 03 — Embeddings Provider — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-006
+**Files Created:** `src/lib/embeddings/retry.ts`, `src/lib/embeddings/batch.ts`, `src/lib/embeddings/voyage.ts`, `src/lib/embeddings/openai.ts`, `src/lib/embeddings/cache.ts`, `src/lib/embeddings/index.ts`
+**Files Modified:** `.ralph/agents.md` (Voyage→OpenAI fallback procedure)
+**Ports Implemented:** EmbeddingsPort at src/lib/embeddings/index.ts
+**Fakes Used During Build:** none consumed — this phase is a leaf. Verified with a stub provider (no VOYAGE_API_KEY, no network).
+**Key Decisions:**
+- All batching/dedup/cache/dim/retry logic lives in `embedWithProvider(provider, ...)` so acceptance is checkable with a synchronous stub and zero keys.
+- Provider selection is env-only. No Voyage→OpenAI failover (would change 1024→1536 mid-run and empty `$vectorSearch`).
+- Cache writes are `bulkWrite` upserts; Mongo failures degrade to a miss with one warning.
+**Issues Found & Fixed:**
+- None — typecheck and stub verification passed on first run. Live Voyage and live `_embed_cache` checks were skipped (no `.env` / `VOYAGE_API_KEY` / `MONGODB_URI` in this environment).
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` — zero errors
+- Stub: 300 texts, order preserved, dim 1024, â‰¤3 batches, duplicates embedded once, `embed([])` → `[]`
+- `planBatches` covers `[0..299]` in order, max 128, oversized text is a batch of one, token budget splits
+- Wrong-length and short provider responses throw
+- `isRetryable` / `withRetry`: 429 → 4 attempts, 400 → 1 attempt
+- `cacheKey` differs by `inputType` and model
+- Registry with `EMBEDDINGS_MODE=real` resolves `{ provider: "voyage", model: "voyage-3-large", dim: 1024 }`
+- Mismatched `EMBEDDING_MODEL`/`EMBEDDING_DIM` throws at import
+**Next:** PHASE-05 and PHASE-06 can set `EMBEDDINGS_MODE=real` once a Voyage key and Atlas URI are present. Until then, keep `EMBEDDINGS_MODE=fake`.
+
 _Append one entry per completed phase, using this shape:_
 
 ```
@@ -94,6 +119,150 @@ _Append one entry per completed phase, using this shape:_
 
 _Anything under Issues Found & Fixed that another phase could hit belongs in `agents.md` under
 Known Gotchas as well. That file is the only way parallel agents learn from each other._
+
+## Phase 05 — NASEMSO Runbook Corpus — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-009
+**Files Created:** `src/lib/ingest/runbooks.ts`, `scripts/ingest-runbooks.ts`
+**Files Modified:** `.ralph/prd.json`, `.ralph/progress.txt`, `.ralph/agents.md`, `.ralph/specs/phase-05-runbook-corpus.md`
+**Ports Implemented:** None
+**Fakes Used During Build:** EMBEDDINGS_MODE intended `fake` (dry-run never calls the port)
+**Key Decisions:**
+- Utah mirror only; cache PDF at exactly 5,040,475 bytes and pages at `data/nasemso-pages.json`
+- Title detection skips the Aliases block; chapter comes from `Chapter Rev. March 2022` headers
+- `sectionPath` is `[chapter, title]` on every chunk so the spoken breadcrumb stays a guideline, not a fragment
+- Filter matched 22 of 69 sections (no fallback); Field Triage appendix kept
+**Issues Found & Fixed:**
+- First-pass titles were alias lists and TOC hits; fixed by requiring Aliases-then-title
+- `NASEMSO` boilerplate was winning chapter attribution; now only the `Rev.` header counts
+- unpdf leaves `7.` on its own line (often at a page break); merge with the next line
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` passes
+- `npx tsx scripts/ingest-runbooks.ts --dry-run` twice: 183 chunks both times, PDF/pages cache reused
+- Unfiltered 506 chunks (sanity gate 50–3000); filtered 183; min 49 / median 1358 / max 1597; 0 over budget; 100% path-length-2; 100% clean openings by ingest regex
+- Field Triage kept; no reference-path leak; `assertChunkCountSane` throws on 12 and 5000
+- Atlas write not run in the first pass (no URI then). Live real-embed recorded in the addendum below.
+**Next:** PHASE-07 can judge runbook retrieval against the live corpus. Postmortem `$vectorSearch` still needs Flex for `vs_postmortems`.
+
+## Phase 05 — live Atlas real-embed — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-009
+**Files Created:** None
+**Files Modified:** `.ralph/progress.txt`, `.ralph/agents.md`, `.ralph/specs/phase-05-runbook-corpus.md`, `README.md`
+**Ports Implemented:** None
+**Fakes Used During Build:** `EMBEDDINGS_MODE=real` only (do not flip the rest until PHASE-16)
+**Key Decisions:**
+- Wrote the corpus with real Voyage `document` embeddings on the first URI+key day, skipping a fake write that PHASE-07 would have to throw away.
+- Did not take M0 Plan B. `vs_runbooks` is READY; `vs_postmortems` waits on Flex.
+**Issues Found & Fixed:**
+- `npm run indexes` failed on `collMod` for existing `decisions` (already in agents.md) and on the fourth vector index (M0 cap). Three indexes still reached READY: `vs_decisions`, `vs_remediations`, `vs_runbooks`.
+- Unpaid Voyage is 3 RPM / 10K TPM. `WRITE_BATCH=200` sent 183 texts in one embed call, 429'd after `deleteMany`, and left `runbooks` empty of `NASEMSO-2022-v3`. Recovered with 8-text batches and a 22s gap. Recorded in `agents.md`.
+**Contract Changes:** None
+**Verification Results:**
+- 183 documents, `source=NASEMSO-2022-v3`, `embedding.length=1024`, empty `embeddedText=0`, duplicate `(sectionTitle, chunkIndex)=0`
+- `vs_runbooks` status READY, queryable, 1024 dimensions
+**Next:** PHASE-07 can retrieve runbooks now. Do not re-ingest unless the chunker changes. Add a Voyage payment method before any other large embed; upgrade Atlas to Flex before seeding needs `vs_postmortems`.
+
+---
+
+## Phase 02 — Collections, Validators, and Vector Indexes — BLOCKED (code complete)
+**Date:** 2026-08-13
+**Tasks:** US-004, US-005
+**Files Created:** `src/lib/db/validators.ts`, `src/lib/db/indexes.ts`, `scripts/create-indexes.ts`
+**Files Modified:** `.ralph/agents.md`, `.ralph/progress.txt` (tracking only)
+**Ports Implemented:** None
+**Fakes Used During Build:** all `*_MODE=fake` (script itself talks only to Atlas)
+**Key Decisions:**
+- Validator requires `incidentId`, `actionChosen`, `rationale`, `t`; no `additionalProperties: false`
+- Vector filter paths match each document type; runbooks has only `sectionTitle`
+- Mismatched `numDimensions` drops and recreates; `--drop-vector` waits until Atlas finishes deleting
+**Issues Found & Fixed:**
+- No `.env.local` / `MONGODB_URI` in this workspace, so `npm run indexes` cannot talk to Atlas. Script prints `numDimensions = 1024` then exits 1 with a clear URI error. Atlas MCP org AI access is also disabled, so the cluster cannot be provisioned from here.
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` passes
+- Offline spec check: 8 managed collections, 4 vector specs (`vs_decisions`, `vs_remediations`, `vs_runbooks`, `vs_postmortems`) at `numDimensions=1024` with the exact filter paths
+- Live `npm run indexes`, validator insert tests, and `$vectorSearch` smoke: not run — blocked on URI
+**Next:** Add `MONGODB_URI` (Flex or higher) to `.env.local`, then `npm run indexes` and wait until all four `vs_*` are READY. That unblocks PHASE-03/05/06/07 vector writes. **Handoff: indexes will be built at numDimensions=1024.**
+
+## Phase 01 — Contracts, Scaffold, Ports, and Fakes — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-002, US-003 (pass); US-001 code complete, live Atlas check blocked on `MONGODB_URI`
+**Files Created:** `package.json`, `tsconfig.json`, `next.config.ts`, `.env.example`, `.gitignore`, `README.md`, `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `src/lib/contracts/**`, `src/lib/ports.ts`, `src/lib/registry.ts`, `src/lib/env.ts`, `src/lib/db/client.ts`, `src/lib/llm.ts`, `src/lib/fakes/**`, `src/lib/real-ports.d.ts`, `scripts/check-atlas.ts`, `fixtures/{incidents,hits,runbook-chunks,postmortems,event-stream,utterances}.json`
+**Files Modified:** `.ralph/prd.json`, `.ralph/progress.txt`, `.ralph/agents.md`, `.ralph/specs/phase-01-contracts-and-scaffold.md`
+**Ports Implemented:** LlmPort at `src/lib/llm.ts` (real) plus seven fakes
+**Fakes Used During Build:** `EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake` for registry checks; real embeddings module already existed from PHASE-03
+**Key Decisions:**
+- App Router at repo-root `app/` with `@/*` → `src/*` so later phases own `app/page.tsx` without a `src/app` split.
+- Registry uses static `import("@/lib/<port>")` strings and `src/lib/real-ports.d.ts` so typecheck passes before those modules exist.
+- Did not take M0 Plan B. Four-collection contract stands.
+**Issues Found & Fixed:**
+- Atlas MCP org AI access is disabled, so cluster tier could not be inspected. Recorded in agents.md. `npm run check` exits 1 with empty URI and with a corrupted URI (`ECONNREFUSED`).
+- Next.js `include: **/*.ts` typechecked stray `tmp-*.ts` verify scripts. Excluded them in tsconfig.
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` — zero errors
+- `npm run build` — succeeded
+- `npm run dev` — HTTP 200 at `/` with BlackBox copy
+- Fake embeddings: dim 1024, deterministic, cosine 0.048 between distinct strings
+- Registry `*_MODE=fake` returns fakes; missing real retrieval logs `FAKE PORT`
+- `assertEmbeddingConfig()` throws on voyage-3-large / 1536
+- Fixtures: incidents 6, hits 12, runbook-chunks 4, postmortems 6, event-stream 40, utterances 8
+**Next:** Copy `.env.example` to `.env.local`, fill a Flex-or-higher `MONGODB_URI`, run `npm run check`. Phases 02–15 are unblocked.
+
+## Phase 06 — Seeded Memory — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-010, US-011
+**Files Created:** `src/lib/memory/seed.ts`, `scripts/seed-memory.ts`, `fixtures/curated-postmortems.json`
+**Files Modified:** `.ralph/specs/phase-06-seeded-memory.md`, `.ralph/prd.json`, `.ralph/agents.md`, `.ralph/progress.txt`
+**Ports Implemented:** None
+**Fakes Used During Build:** `EMBEDDINGS_MODE=fake`, `LLM_MODE=fake` (also verified `--templated` with `LLM_MODE=real` and no `OPENAI_API_KEY`)
+**Key Decisions:**
+- `--templated` is the default; `--llm` is opt-in. Fake LLM narratives fail the 60–110 word band, so the default path never calls `LlmPort`.
+- Family medians are cached after one aggregation (`$median` on MongoDB 7+, `$push` fallback). Fixture runs compute medians in process and never hit Atlas.
+- Curated entries bind to real incident ids with derived `costMinutes`; diversion text is synthetic and labeled `origin: "curated"`. Empty `incidents` skips curated rather than blocking the bulk seed.
+**Issues Found & Fixed:**
+- PowerShell `npm run seed -- --target=20` is eaten as npm config; `npx tsx` and `cmd /c` pass flags through. Noted in `agents.md`.
+- Voyage 429s on the live embed batch retried and succeeded (`EMBEDDINGS_MODE=real`).
+- Curated B3/M2 selects were not in the 2024 slice; bound to other dispatch areas via same call-type codes and printed the bound `incidentId`.
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` passes
+- Fixture dry-run: `--target=20 --templated --from-fixtures --dry-run` exits 0; 4 selected; word band 91–103; dose regex clean; `decisionsCount` 0
+- Live Atlas (MongoDB 8.0.29): `npm run ingest:incidents` → 178 historical docs; then `EMBEDDINGS_MODE=real LLM_MODE=fake npx tsx scripts/seed-memory.ts --templated`
+- Seed report: selected 40, postmortemsWritten 40, remediationsWritten 40, curatedWritten 3, llmFailures 0, decisionsCount 0 OK
+- Transition histogram: `UNC->ARREST` 15, `SICK->CARD` 15, other divergent 10. All 43 remediations `failure` (selection prefers undertriage).
+**Next:** PHASE-07 can tune `SIGNATURE_MATCH_FLOOR` against this exact corpus (43 postmortems: 40 seeded + 3 curated). Do not re-seed unless the ingest slice changes; `origin: "seeded"` deletes are idempotent.
+
+## Phase 04 — NYC Dispatch Ingestion and the Pitch Number — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-007, US-008
+**Files Created:** `src/lib/ingest/nyc.ts`, `scripts/ingest-incidents.ts`, `scripts/compute-pitch-number.ts`
+**Files Modified:** `.ralph/agents.md`, `.ralph/prd.json`, `.ralph/progress.txt`, `.ralph/specs/phase-04-nyc-ingestion.md`
+**Ports Implemented:** None
+**Fakes Used During Build:** `EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake`
+**Key Decisions:**
+- `toDate` appends `Z` so naive Socrata timestamps store as UTC wall-clock; `ref` is timezone-stable.
+- Slice fetches are sequential with up to three timeout/5xx retries (120s each). Parallel `$limit` requests timed out here.
+- Pitch cache is the point of `npm run pitch`: default reads `data/pitch-numbers.json`; `--refresh` refetches; `--offline` fails closed if the cache is missing.
+- Reclass priors are Socrata `$group` counts for `UNC`/`SICK` from 2023 onward, including night hours via `date_extract_hh`. Never a literal copied from `reference.png`.
+**Issues Found & Fixed:**
+- First full ingest: four parallel Socrata slice requests hit a 45s abort. Sequential 90s fetches + one retry completed in ~35s. Atlas ingest later hit a 90s abort; timeout is now 120s with three attempts.
+- `verifyCodeLabels` reported 11 unlabeled codes on divergent/control only (`PEDSTR`, `ALTMEN`, `ANAPH`, `BURNMI`, `SICMIN`, `STATEP`, `STNDBM`, `STNDBY`). Demo path (`UNC`/`SICK`) is fully labeled. Recorded in `agents.md`; did not edit PHASE-01 `CODE_LABELS`.
+- A leftover PowerShell `MONGODB_URI` pointing at local Docker shadowed `.env.local` until it was unset.
+**Contract Changes:** None
+**Verification Results:**
+- `npm run typecheck` — zero errors
+- Transform: `toNum("")` is null; severity 9 drops; `2024-03-05T01:12:00.000` → `ref` `240305-5942`; `synthesizeUnit` stable and `/^\d{1,2}[A-Z]$/`
+- Fixture-derived rows quarantine finals under `_groundTruth`; `incidentTotalSeconds` left unset
+- `--slice=arrest --dry-run`: 40 fetched, 40 transformed, 0 drops, unlabeled none
+- `npm run ingest:incidents` against local Docker Mongo (no PHASE-02 indexes): 178 historical docs, 40 UNC→ARREST, 40 SICK→CARD, 20 control, 1 severity drop, 1 cross-slice duplicate, leak=0, BSON dates, only `_id_` index
+- Second ingest: count 178 unchanged, upserted 0, modified 178, createdAt untouched
+- Live Atlas (MongoDB 8.0.29, replica set `atlas-8o6fie-shard-0`): same 178 historical / 40 UNC→ARREST / 40 SICK→CARD / 0 live after `npm run ingest:incidents` with `.env.local` URI
+- `npm run pitch -- --refresh`: all ten metrics match expected, **zero drift**, `divergent_2023_pct` = 15.0; 130 priors, UNC+SICK, nightOnly true, no mockup 18%
+- Cached `npm run pitch` and `--offline` make zero network requests; `--offline` without cache exits 1
+**Next:** PHASE-07 serves `data/reclass-priors.json` (SICK→CARD 2.6% population / 2.9% in B3 — not the mockup 18%). PHASE-15: the slide number is still **15.0%**. Preflight saw 3 vector indexes (M0 cap); confirm Flex before a fourth `vs_*`.
 
 ---
 

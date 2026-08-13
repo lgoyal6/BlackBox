@@ -1,6 +1,6 @@
 # Phase 03 — Embeddings Provider
 
-**Status:** PENDING
+**Status:** COMPLETE
 **Tasks:** US-006
 **Depends on:** PHASE-01 only (contracts + fakes)
 **Budget:** 20 min
@@ -222,24 +222,24 @@ Call `assertEmbeddingConfig()` once at module load so a bad model-and-dimension 
 
 ## Acceptance Criteria
 
-- [ ] `npm run typecheck` passes with zero errors
-- [ ] `src/lib/embeddings/index.ts` default-exports a value annotated as `EmbeddingsPort`, so a missing or misnamed method is a compile error
-- [ ] **Verifiable with all other ports faked:** with `EMBEDDINGS_MODE=real` and no `VOYAGE_API_KEY` set, `embedWithProvider` with a stub provider returns vectors of `env.embeddingDim` for 300 texts without a single network request
-- [ ] With a stub provider that returns a vector encoding its input's position, the output vector at index `i` corresponds to `texts[i]` for all 300 inputs, including across batch boundaries
-- [ ] `embed([])` resolves to `[]` and makes no network or database call
-- [ ] Passing an array containing the same text three times returns three identical vectors and invokes the stub provider with that text exactly once
-- [ ] `planBatches` of 300 texts under Voyage limits yields batches of at most 128 indices, the concatenation of all batches equals `[0..299]` in ascending order, and no index appears twice
-- [ ] `planBatches` splits a batch further when accumulated `approxTokens` would exceed 120,000, and a single oversized text is emitted as a batch of one
-- [ ] A stub provider returning a wrong-length vector causes a throw whose message contains both the returned length and `env.embeddingDim`
-- [ ] A stub provider returning fewer vectors than texts causes a throw rather than a short array
-- [ ] `isRetryable` returns `true` for 429, 500, 502, 503, 504 and for an `AbortError`, and `false` for 400, 401, 403, 404
-- [ ] `withRetry` makes exactly 4 attempts against an always-429 stub and exactly 1 against an always-400 stub
-- [ ] `cacheKey` differs for the same text under different `inputType` values and under different models
-- [ ] Against a live cluster, embedding 5 texts twice results in the second call reading all 5 from `_embed_cache` and invoking the provider zero times
-- [ ] `getCached` ignores a cache document whose `dim` does not equal `env.embeddingDim`
-- [ ] `info()` returns the provider, model, and dimension from `env`
-- [ ] Optional live check, if `VOYAGE_API_KEY` is present: `embedVoyage(["chest pain"], "query")` returns one vector of length 1024, and the same text embedded as `"document"` and as `"query"` produces two vectors that are not identical
-- [ ] Importing the module with a deliberately mismatched `EMBEDDING_MODEL` and `EMBEDDING_DIM` throws at import time
+- [x] `npm run typecheck` passes with zero errors
+- [x] `src/lib/embeddings/index.ts` default-exports a value annotated as `EmbeddingsPort`, so a missing or misnamed method is a compile error
+- [x] **Verifiable with all other ports faked:** with `EMBEDDINGS_MODE=real` and no `VOYAGE_API_KEY` set, `embedWithProvider` with a stub provider returns vectors of `env.embeddingDim` for 300 texts without a single network request
+- [x] With a stub provider that returns a vector encoding its input's position, the output vector at index `i` corresponds to `texts[i]` for all 300 inputs, including across batch boundaries
+- [x] `embed([])` resolves to `[]` and makes no network or database call
+- [x] Passing an array containing the same text three times returns three identical vectors and invokes the stub provider with that text exactly once
+- [x] `planBatches` of 300 texts under Voyage limits yields batches of at most 128 indices, the concatenation of all batches equals `[0..299]` in ascending order, and no index appears twice
+- [x] `planBatches` splits a batch further when accumulated `approxTokens` would exceed 120,000, and a single oversized text is emitted as a batch of one
+- [x] A stub provider returning a wrong-length vector causes a throw whose message contains both the returned length and `env.embeddingDim`
+- [x] A stub provider returning fewer vectors than texts causes a throw rather than a short array
+- [x] `isRetryable` returns `true` for 429, 500, 502, 503, 504 and for an `AbortError`, and `false` for 400, 401, 403, 404
+- [x] `withRetry` makes exactly 4 attempts against an always-429 stub and exactly 1 against an always-400 stub
+- [x] `cacheKey` differs for the same text under different `inputType` values and under different models
+- [x] Against a live cluster, embedding 5 texts twice results in the second call reading all 5 from `_embed_cache` and invoking the provider zero times
+- [x] `getCached` ignores a cache document whose `dim` does not equal `env.embeddingDim`
+- [x] `info()` returns the provider, model, and dimension from `env`
+- [x] Optional live check, if `VOYAGE_API_KEY` is present: `embedVoyage(["chest pain"], "query")` returns one vector of length 1024, and the same text embedded as `"document"` and as `"query"` produces two vectors that are not identical
+- [x] Importing the module with a deliberately mismatched `EMBEDDING_MODEL` and `EMBEDDING_DIM` throws at import time
 
 ## Verification
 
