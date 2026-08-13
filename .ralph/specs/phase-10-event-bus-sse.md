@@ -80,7 +80,7 @@ Implement `nextSeq` as a single `findOneAndUpdate` on `col(WATCH_STATE)` with `{
 
 Two notes on the storage location:
 
-- The counter lives in `_watch_state` because that collection already exists in `contracts.md` §2 and is the natural home for stream bookkeeping. **PHASE-12 also writes to `_watch_state`** for its resume tokens, under `_id` values prefixed `watch:` and `poll:`. Namespace every `_id` this phase writes with `seq:` and **never issue `deleteMany({})` against `_watch_state`** — clearing it would reset both phases' bookkeeping.
+- The counter lives in `_watch_state` because that collection already exists in `contracts.md` §2, needs no new name, and is the natural home for stream bookkeeping. **This is a shared collection and the sharing is deliberate.** PHASE-12 writes resume tokens there under `_id` values prefixed `watch:` and `poll:`, and PHASE-02's spec describes `_watch_state` as PHASE-12-shaped. Coexistence is safe because PHASE-02 creates no index and no validator on it and PHASE-12 touches only its own three `_id` values — but it is an overlap worth announcing. Namespace every `_id` this phase writes with `seq:`, **never issue `deleteMany({})` against `_watch_state`**, and note the shared use in `.ralph/agents.md` so PHASE-12 and PHASE-02 do not have to rediscover it. If anyone wants it formalized, the fix is one added collection name in `contracts.md` §2, which is a contract change and therefore an announcement, not a silent edit.
 - Counters are per incident and every live incident gets a fresh `incidentId` from `POST /api/demo/fire`, so counters never need resetting between rehearsal runs. That is also why `POST /api/demo/reset` (PHASE-11) deliberately leaves `_watch_state` alone.
 
 ### `src/lib/events/index.ts`
@@ -158,7 +158,7 @@ export async function GET(req: Request): Promise<Response>;
 
 `runtime = "nodejs"` because the Mongo driver cannot run on the edge runtime. `dynamic = "force-dynamic"` because a statically analyzed or cached route handler will not hold a stream open, and the failure mode is a connection that returns immediately with an empty body — which reads like a dashboard bug rather than a caching decision.
 
-**Query parameter.** `incidentId` is optional; absent means stream everything. Present-but-empty is a `400` with `{ error: "incidentId must be non-empty" }`, because a dashboard bug that produces `?incidentId=` should surface as an error rather than silently switching to the firehose.
+**Query parameter.** `incidentId` is optional. Absent **or empty** means stream every event. Do not reject an empty value: PHASE-16's smoke script issues `GET /api/events?incidentId=` while probing the replay, and a `400` there would fail the integration gate over a query-string detail rather than a real defect. Log a one-line warning when the parameter is present but empty so a genuine dashboard bug is still visible.
 
 **Response headers, exactly:**
 
@@ -216,7 +216,7 @@ A leaked change stream per browser reload will exhaust the Atlas connection pool
 - [ ] Replay and live frames for the same event are byte-identical apart from arrival order
 - [ ] After 5 connect-then-disconnect cycles, the last `[events] change stream closed` line in the server log reports `open=0`
 - [ ] A client that stops reading does not stall a second client: with one stalled connection open, a second `curl` still receives new events, and the server log contains `[events] dropped`
-- [ ] `?incidentId=` (empty) returns `400` with `{ error: ... }`
+- [ ] `?incidentId=` (empty) returns `200` and streams all events, and logs one warning — it does **not** return `400`, because PHASE-16's smoke sends exactly that
 - [ ] No file was created or modified outside `src/lib/events/**` and `app/api/events/route.ts`
 
 ## Verification

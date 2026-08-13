@@ -331,7 +331,7 @@ export function parseEvent(raw: unknown): BlackboxEvent | null;
 
 Per-kind reduction rules, all of which exist to survive the SSE replay frame described in `contracts.md` §10:
 
-- `status` — replaces the header fields. Sets `startedAtMs` from the event's `t` only if it is still null, so the first status event seen wins and a later one during the same call does not restart the clock.
+- `status` — replaces the header fields. Sets `startedAtMs` from `payload.startedAt` (a `Date` on the status event, locked in `contracts.md` §8). Do not fall back to `event.t`; that breaks after a reload once the replay window has rolled past the first status.
 - `node` — sets `activeNode` on `phase: "enter"`; clears it on `phase: "exit"` only when the exiting node is the currently active one. Without that guard, an out-of-order exit clears a node that has already advanced and the footer goes dark.
 - `voice` — appends a `turn` item.
 - `decision` — appends a `decision` item.
@@ -350,6 +350,9 @@ Pure formatting and the node-to-stage mapping. No React.
 
 ```ts
 import type { GraphNode, Hit } from "@/lib/contracts";
+import { GRAPH_STAGES } from "@/lib/contracts";
+
+export { GRAPH_STAGES };
 
 /** Returns null when the anchor is unknown, so the caller can render "-- : --". */
 export function formatElapsed(
@@ -369,18 +372,12 @@ export function snippetLabel(hit: Hit): string;
 /** "Cardiac arrest" from "cardiac arrest". First letter only; the rest is left alone. */
 export function sentenceCase(s: string): string;
 
-export interface GraphStage {
-  id: "triage" | "recall" | "readback_gate" | "record";
-  label: string;
-  nodes: readonly GraphNode[];
-}
-
-export const GRAPH_STAGES: readonly GraphStage[];
-
-export function activeStageId(node: GraphNode | null): GraphStage["id"] | null;
+export function activeStageId(node: GraphNode | null): (typeof GRAPH_STAGES)[number]["id"] | null;
 
 export const DOT = " \u00b7 ";
 ```
+
+Do **not** redefine `GRAPH_STAGES` here. Import it from `@/lib/contracts` (§4). The four-pill grouping is a contract, not a component invention.
 
 `formatElapsed` returns null rather than `00 : 00` when there is no anchor. A timer reading zero during a live call looks like the dashboard is dead; `-- : --` reads as "not started yet," which is the truth.
 
@@ -703,9 +700,8 @@ console.log('unknown kind survives', reduceEvent(once, { kind: 'nope', seq: 1000
 
 # Stage mapping covers all ten contract nodes.
 npx tsx -e "
-import { GRAPH_STAGES } from './src/components/format';
-import { GRAPH_NODE_ORDER } from './src/lib/contracts';
-const mapped = new Set(GRAPH_STAGES.flatMap(s => s.nodes));
+import { GRAPH_STAGES, GRAPH_NODE_ORDER } from './src/lib/contracts';
+const mapped = new Set(GRAPH_STAGES.flatMap(s => [...s.nodes]));
 console.log('unmapped', GRAPH_NODE_ORDER.filter(n => !mapped.has(n)));
 "
 
@@ -768,20 +764,18 @@ NEXT_PUBLIC_EVENTS_MODE=real npm run dev
 
 Step 3 is the one that matters. It is the same mechanic as the kill-and-resume beat in PHASE-15, and the presenter will do it in front of judges.
 
-## Contract Gaps (report these; do not fix them here)
+## Display rules (already locked in `contracts.md` §4 and §8)
 
-`reference.png` shows several things that `contracts.md` §8 cannot express. Each is handled locally in this phase with the stated inference, and each needs a one-line clarification in the contract rather than a workaround that quietly diverges from what PHASE-10 and PHASE-11 emit.
+Do not re-derive these. Emitters in PHASE-10/11 and this dashboard both honor them:
 
-1. **No call start time.** The header's elapsed timer has no source field. `status.payload` carries `status`, `ref`, `label`, `dispatchArea`, and `unit`, but no `startedAt`. This phase anchors on the `t` of the first `status` event it sees, which breaks after a reload once the 200-event replay window has rolled past that event. A `startedAt` field in the `status` payload would fix it outright. Note also that the reference's header reads `04 : 42` while its newest turn clock reads `44:31`; those are independent values and neither derives from the other.
-2. **No recording state.** Nothing expresses "audio capture is live." This phase infers it from `status !== "closed"`, which conflates the incident lifecycle with the voice session — the pill would stay lit if the ElevenLabs connection dropped mid-call.
-3. **`write.payload.count` semantics are undefined.** Absolute total or delta is unspecified, and this phase must assume absolute to stay idempotent under the replay frame. If PHASE-10 emits deltas, every counter double-counts on every reload. This is the highest-consequence gap in the list because those counters are what the presenter points at.
-4. **`write.payload.collection` is not a collection name.** The reference shows a `timeline` tile, and there is no `timeline` collection — timeline entries are an array inside `incidents`. The field is really a display bucket, which also means the `/api/counters` bootstrap and the `write` event stream produce different key sets that have to be merged.
-5. **No node display labels or stage grouping.** `GRAPH_NODE_ORDER` has ten entries; the footer shows four pills reading `triage`, `recall`, `readback gate`, and `record`. Both the grouping and the human labels are invented here. `CODE_LABELS` exists for call types for exactly this reason, and a `GRAPH_NODE_LABELS` plus stage grouping belongs beside it in §4.
-6. **`readback` has no link to the turn it belongs to.** The reference pins the pill under the `44:31` agent turn, and the payload carries only `state` and `readbackText`. This phase infers the anchor as the newest timeline item at reduce time, which is wrong if events arrive out of order. An `afterSeq` or a turn id in the payload would make it exact.
-7. **Which score to display is ambiguous.** `Hit` carries both `score` and `rrf`, and the reference shows one number per row. This phase renders `score` because it is described as the raw per-collection score, and separately uses `rrf` to pick the expanded snippet. Nothing in the contract says which one belongs on screen.
-8. **No primary-hit marker.** `retrieval.payload.hits` is a flat array with nothing indicating which hit gets expanded into the nested snippet card. This phase picks the highest `rrf`.
-9. **Row and snippet prefixes are not fields.** `Incident `, `Protocol: `, and `Prior run:` are all derived from `Hit.source` by this phase. They are spoken and displayed strings, so like `CODE_LABELS` they arguably belong in the contract rather than in a component.
-10. **Connection state has no representation,** which is correct — it is local UI state — but worth stating so that no one later tries to emit an event for it. The dashboard's `reconnecting` indicator is intentionally invisible in the reference layout.
+- Header elapsed clock uses `status.payload.startedAt`, not `voice.clock`.
+- `Recording` pill is on when `status !== "closed"`.
+- `write.payload.count` is the absolute total; last write wins.
+- `write.payload.collection` may be `"timeline"`.
+- Footer pills come from `GRAPH_STAGES`.
+- Vector-search rows display `Hit.score`; `rrf` only picks the expanded snippet.
+
+The remaining local inferences that are still this phase's (not worth a contract change): pin the awaiting-readback pill to the newest timeline item at reduce time; derive `Incident` / `Protocol:` / `Prior run:` prefixes from `Hit.source`; connection/reconnecting state is local UI and has no event kind.
 
 ## Handoff Note
 
