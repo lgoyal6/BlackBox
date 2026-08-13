@@ -216,7 +216,7 @@
     "incidentId": "2608130442",
     "t": "2026-08-13T16:01:30.000Z",
     "kind": "write",
-    "payload": { "collection": "events", "count": 23 }
+    "payload": { "collection": "timeline", "count": 22 }
   },
   {
     "seq": 24,
@@ -323,34 +323,34 @@
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:37.000Z",
     "kind": "write",
-    "payload": { "collection": "events", "count": 36 }
+    "payload": { "collection": "decisions", "count": 7 }
   },
   {
     "seq": 37,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:10.000Z",
+    "t": "2026-08-13T16:02:38.000Z",
     "kind": "write",
-    "payload": { "collection": "runbooks", "count": 4 }
+    "payload": { "collection": "timeline", "count": 34 }
   },
   {
     "seq": 38,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:12.000Z",
-    "kind": "write",
-    "payload": { "collection": "postmortems", "count": 6 }
+    "t": "2026-08-13T16:02:39.000Z",
+    "kind": "checkpoint",
+    "payload": { "count": 34 }
   },
   {
     "seq": 39,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:14.000Z",
+    "t": "2026-08-13T16:02:40.000Z",
     "kind": "write",
-    "payload": { "collection": "remediations", "count": 2 }
+    "payload": { "collection": "decisions", "count": 7 }
   },
   {
     "seq": 40,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:16.000Z",
+    "t": "2026-08-13T16:02:41.000Z",
     "kind": "checkpoint",
-    "payload": { "count": 20 }
+    "payload": { "count": 34 }
   }
 ]
