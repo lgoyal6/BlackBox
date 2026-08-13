@@ -18,7 +18,7 @@
       "id": "PHASE-01",
       "title": "Contracts, Scaffold, Ports, and Fakes",
       "spec": "specs/phase-01-contracts-and-scaffold.md",
-      "status": "pending",
+      "status": "complete",
       "parallel": false,
       "dependsOn": [],
       "blocks": ["PHASE-02", "PHASE-03", "PHASE-04", "PHASE-05", "PHASE-06", "PHASE-07", "PHASE-08", "PHASE-09", "PHASE-10", "PHASE-11", "PHASE-12", "PHASE-13", "PHASE-14", "PHASE-15", "PHASE-16"],
@@ -41,7 +41,7 @@
       "id": "PHASE-03",
       "title": "Embeddings Provider",
       "spec": "specs/phase-03-embeddings.md",
-      "status": "pending",
+      "status": "complete",
       "parallel": true,
       "dependsOn": ["PHASE-01"],
       "budgetMinutes": 20,
@@ -52,7 +52,7 @@
       "id": "PHASE-04",
       "title": "NYC Dispatch Ingestion and the Pitch Number",
       "spec": "specs/phase-04-nyc-ingestion.md",
-      "status": "pending",
+      "status": "complete",
       "parallel": true,
       "dependsOn": ["PHASE-01"],
       "budgetMinutes": 25,
@@ -63,7 +63,7 @@
       "id": "PHASE-05",
       "title": "NASEMSO Runbook Corpus",
       "spec": "specs/phase-05-runbook-corpus.md",
-      "status": "pending",
+      "status": "complete",
       "parallel": true,
       "dependsOn": ["PHASE-01"],
       "budgetMinutes": 25,
@@ -74,7 +74,7 @@
       "id": "PHASE-06",
       "title": "Seeded Memory (postmortems + remediations)",
       "spec": "specs/phase-06-seeded-memory.md",
-      "status": "pending",
+      "status": "complete",
       "parallel": true,
       "dependsOn": ["PHASE-01"],
       "budgetMinutes": 30,
@@ -222,7 +222,7 @@
         "registry.ts falls back to the fake and logs a warning containing the string FAKE PORT when a real module is absent",
         "registry.ts uses only static string literals in its dynamic imports so no phase ever needs to edit it"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",
@@ -238,7 +238,7 @@
         "fixtures/incidents.json includes _groundTruth on historical records so answer-stripping can be tested offline",
         "No fake performs any network or database call"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
@@ -284,7 +284,7 @@
         "A 400 response is not retried; a 429 is retried with backoff",
         "npm run typecheck passes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
@@ -305,7 +305,7 @@
         "Every ingested initialCallType resolves to a label via labelFor, and any miss is reported",
         "npm run typecheck passes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",
@@ -319,7 +319,7 @@
         "data/reclass-priors.json is produced with ReclassPrior-shaped records; every pct is computed from a Socrata count, not a literal",
         "A disagreement between a fresh computation and the values in overview.md is reported explicitly rather than silently overwritten"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",
@@ -339,7 +339,7 @@
         "The phase verifies with EMBEDDINGS_MODE=fake",
         "npm run typecheck passes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",
@@ -358,7 +358,7 @@
         "The phase verifies with EMBEDDINGS_MODE=fake and LLM_MODE=fake",
         "npm run typecheck passes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
@@ -373,7 +373,7 @@
         "Every curated record is marked origin curated and is distinguishable from seeded and live",
         "At least one curated narrative contains the receiving-facility diversion detail and its derived cost in minutes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-012",
