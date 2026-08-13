@@ -5,7 +5,7 @@
   "contract": ".ralph/contracts.md",
   "designReference": "reference.png",
   "executionModel": {
-    "note": "PHASE-01 is the only prerequisite. Every phase from 02 to 15 can be implemented simultaneously by a different agent.",
+    "note": "PHASE-01 is the only prerequisite for phases 02-15, which run in parallel. PHASE-16 is serial after that wave: it flips every port from fake to real and runs the end-to-end smoke.",
     "rules": [
       "Own only the files listed in your phase's `owns` array. Never create or edit a file owned by another phase.",
       "Import only from @/lib/contracts, @/lib/ports, @/lib/registry, @/lib/db/client, and your own files.",
@@ -21,7 +21,7 @@
       "status": "pending",
       "parallel": false,
       "dependsOn": [],
-      "blocks": ["PHASE-02", "PHASE-03", "PHASE-04", "PHASE-05", "PHASE-06", "PHASE-07", "PHASE-08", "PHASE-09", "PHASE-10", "PHASE-11", "PHASE-12", "PHASE-13", "PHASE-14", "PHASE-15"],
+      "blocks": ["PHASE-02", "PHASE-03", "PHASE-04", "PHASE-05", "PHASE-06", "PHASE-07", "PHASE-08", "PHASE-09", "PHASE-10", "PHASE-11", "PHASE-12", "PHASE-13", "PHASE-14", "PHASE-15", "PHASE-16"],
       "budgetMinutes": 30,
       "owns": ["package.json", "tsconfig.json", "next.config.ts", ".env.example", ".gitignore", "README.md", "src/lib/contracts/**", "src/lib/ports.ts", "src/lib/fakes/**", "src/lib/registry.ts", "src/lib/db/client.ts", "src/lib/llm.ts", "src/lib/env.ts", "scripts/check-atlas.ts", "fixtures/** (except curated-postmortems.json)"],
       "implementsPort": "LlmPort"
@@ -55,7 +55,7 @@
       "status": "pending",
       "parallel": true,
       "dependsOn": ["PHASE-01"],
-      "budgetMinutes": 30,
+      "budgetMinutes": 25,
       "owns": ["src/lib/ingest/nyc.ts", "scripts/ingest-incidents.ts", "scripts/compute-pitch-number.ts"],
       "implementsPort": null
     },
@@ -179,6 +179,17 @@
       "budgetMinutes": 45,
       "owns": ["scripts/demo-*.ts", "docs/**"],
       "implementsPort": null
+    },
+    {
+      "id": "PHASE-16",
+      "title": "Fake-to-Real Cutover and End-to-End Smoke",
+      "spec": "specs/phase-16-integration-cutover.md",
+      "status": "pending",
+      "parallel": false,
+      "dependsOn": ["PHASE-01", "PHASE-02", "PHASE-03", "PHASE-04", "PHASE-05", "PHASE-06", "PHASE-07", "PHASE-08", "PHASE-09", "PHASE-10", "PHASE-11", "PHASE-12", "PHASE-13", "PHASE-14", "PHASE-15"],
+      "budgetMinutes": 50,
+      "owns": ["scripts/integrate.ts", "scripts/smoke.ts"],
+      "implementsPort": null
     }
   ],
   "tasks": [
@@ -280,18 +291,18 @@
       "phase": "PHASE-04",
       "title": "Ingest NYC dispatch slices with answers stripped",
       "acceptanceCriteria": [
-        "npm run ingest:incidents inserts approximately 2000 documents into incidents",
-        "At least 150 documents match cad.initialCallType UNC with _groundTruth.finalCallType ARREST",
-        "At least 150 documents match cad.initialCallType SICK with _groundTruth.finalCallType CARD",
+        "npm run ingest:incidents inserts between 100 and 250 historical documents",
+        "At least 20 documents match cad.initialCallType UNC with _groundTruth.finalCallType ARREST",
+        "At least 20 documents match cad.initialCallType SICK with _groundTruth.finalCallType CARD",
         "No document has a top-level finalCallType, finalSeverityLevelCode, or incidentCloseDatetime",
         "Every cad.initialSeverityLevelCode is an integer between 1 and 8",
         "Every cad.incidentDatetime is a Date instance, not a string",
         "Every document has displayId, ref, callTypeFamily, and isLive false",
-        "Every Socrata request sends $order=incident_id",
+        "Every Socrata request sends $order=incident_id and a $limit no larger than the contracts.md section 14 constant for that slice",
         "Query parameters are encoded by URLSearchParams rather than hand-built strings",
+        "The script never requests rows.csv or a $limit of 1000 or more",
         "Re-running the script leaves the document count unchanged",
         "Every ingested initialCallType resolves to a label via labelFor, and any miss is reported",
-        "The phase verifies end to end with EMBEDDINGS_MODE=fake",
         "npm run typecheck passes"
       ],
       "passes": false
@@ -304,7 +315,8 @@
         "npm run pitch prints total incidents, the 2023+ call-type-change rate, the all-time rate, the undertriage rate, and the reopen rate",
         "The 2023+ call-type-change rate computes to approximately 15.0 percent",
         "Results are written to data/pitch-numbers.json and read from cache on subsequent runs without a network call",
-        "data/reclass-priors.json is produced with ReclassPrior-shaped records grouped by initial call type, dispatch area, and night flag",
+        "Pitch numbers are computed only with Socrata count(1) and $group queries, never by downloading incident rows",
+        "data/reclass-priors.json is produced with ReclassPrior-shaped records; every pct is computed from a Socrata count, not a literal",
         "A disagreement between a fresh computation and the values in overview.md is reported explicitly rather than silently overwritten"
       ],
       "passes": false
@@ -315,7 +327,7 @@
       "title": "Download, chunk, embed, and load the NASEMSO guideline corpus",
       "acceptanceCriteria": [
         "The PDF is downloaded from the ems.utah.gov mirror, not nasemso.org, and cached to data/",
-        "npm run ingest:runbooks writes between 50 and 3000 documents to runbooks",
+        "npm run ingest:runbooks prefers RUNBOOK_CHAPTER_FILTER chapters and writes between 30 and 400 documents to runbooks",
         "Every document has non-empty text, sectionTitle, at least one sectionPath element, pageStart, embedding, and embeddedText",
         "Every embedding has length env.embeddingDim",
         "Mean text length is between 400 and 2000 characters",
@@ -334,12 +346,12 @@
       "phase": "PHASE-06",
       "title": "Generate and load seeded postmortem narratives",
       "acceptanceCriteria": [
-        "npm run seed writes at least 300 postmortems with origin seeded",
-        "At least 60 come from UNC to ARREST and at least 60 from SICK to CARD",
+        "npm run seed writes at least 30 postmortems with origin seeded (SEED_TARGET is 40)",
+        "At least 15 come from UNC to ARREST and at least 15 from SICK to CARD",
         "Every narrative is between 40 and 200 words and has an embedding of length env.embeddingDim",
         "Every postmortem has displayId, whatChanged, severityDelta, and callTypeFamily",
         "No generated narrative contains a numeric drug dose, verified by grepping for mg, mcg, and mL and reviewing every hit",
-        "The --templated flag produces a complete corpus with zero LLM calls",
+        "The --templated path is the default and produces a complete corpus with zero LLM calls",
         "A fixed random seed makes two runs select the same incidents",
         "The script asserts decisions.countDocuments() is 0 when it finishes and fails loudly otherwise",
         "Re-running leaves seeded counts stable and does not delete curated or live documents",
@@ -353,7 +365,7 @@
       "phase": "PHASE-06",
       "title": "Derive remediations with real cost, plus curated demo postmortems",
       "acceptanceCriteria": [
-        "remediations contains both success and failure documents with at least 50 failures",
+        "remediations contains both success and failure documents with at least 10 failures",
         "reopenIndicator true, severityDelta above 0, and total time above 1.5x the family median each produce a failure",
         "Every failure costMinutes is computed as (incidentTotalSeconds - familyMedianSeconds)/60 clamped at 0, never a hardcoded literal",
         "Family medians are computed once with a single aggregation rather than per row",
@@ -658,7 +670,7 @@
         "scripts/demo-reset.ts restores a clean slate without touching runbooks or seeded memory",
         "npm run preflight checks that all four vs_* indexes report READY",
         "Preflight asserts the decisions collection is empty",
-        "Preflight asserts seeded postmortem and runbook chunk counts are above their floors",
+        "Preflight asserts seeded postmortem count is at least 30 and runbook chunk count is at least 30",
         "Preflight fails when any port is resolving to a fake, detected by grepping for FAKE PORT warnings",
         "Preflight verifies data/pitch-numbers.json exists and is served from cache with no network call",
         "Preflight verifies the tunnel URL resolves and a tool route answers with the shared secret",
@@ -683,6 +695,37 @@
         "docs/preflight.md mirrors every automated check plus the manual audio and window-position items",
         "The closing response-time delta is documented with its derivation from real dataset fields and is computed before going on stage",
         "The kill-and-resume has been rehearsed three times end to end with the full voice path"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-031",
+      "phase": "PHASE-16",
+      "title": "Flip all ports to real and refuse to proceed on fakes or unreadiness",
+      "acceptanceCriteria": [
+        "npm run integrate exits 0 against the live cluster with all *_MODE=real",
+        "npm run integrate exits non-zero if any port resolves to a fake",
+        "npm run integrate exits non-zero if any vs_* index is not READY",
+        "npm run integrate exits non-zero if decisions is not empty",
+        "Corpus floors are the demo-slice numbers from contracts.md section 14: at least 100 historical incidents, 20 UNC-ARREST, 20 SICK-CARD, 30 seeded postmortems, 2 curated, 10 failure remediations, 30 runbooks",
+        "data/pitch-numbers.json exists and is served from cache",
+        "No FAKE PORT line appears in the integrate log on a passing run"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-032",
+      "phase": "PHASE-16",
+      "title": "One smoke call through fire, readback, decision, close, and kill-resume",
+      "acceptanceCriteria": [
+        "npm run smoke completes in under 90 seconds and exits 0",
+        "After smoke, decisions contains exactly one document with a non-empty rationale",
+        "After smoke, exactly one postmortem has origin live",
+        "Seeded postmortem and runbook counts are identical before and after smoke",
+        "propose_readback in the smoke path returns 1 milligram and epinephrine with no rounding",
+        "npm run drill exits 0 on the smoke incident or a dedicated drill incident",
+        "The dashboard with NEXT_PUBLIC_EVENTS_MODE=real shows the smoke timeline without a page refresh",
+        "npm run typecheck and npm run build still pass"
       ],
       "passes": false
     }

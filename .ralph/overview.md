@@ -59,6 +59,8 @@ Any implementation decision that weakens one of these is wrong, even if it saves
 | Event transport | **Server-Sent Events over a MongoDB change stream** | Not WebSocket. See Architecture — this is a hard Next.js constraint turned into an advantage. |
 | Voice transport | **Browser WebRTC via `@elevenlabs/react`**, Twilio outbound optional | See Voice Transport Risk. |
 | Demo scenario pair | **Call 1: `UNC` → `ARREST`. Call 2: `SICK` → occult cardiac.** | Both are real high-volume NYC transitions (`UNC`→`ARREST` = 14,987 incidents 2023+; `SICK`→`CARD` = 15,966). Different dispatch labels, different presenting symptoms, same latent pattern: a dispatch code that understates a cardiac event. That is a *variant*, not a repeat, so vector retrieval visibly does semantic work instead of looking like a string lookup. Script in PHASE-15. |
+| Corpus size | **Demo slice, not the 30M-row dataset.** ~180 incidents in Atlas, ~40 seeded postmortems, NASEMSO chapters relevant to the two demo calls. | A hackathon demo needs retrieval to look real, not a warehouse. The 15.0% pitch number still comes from four Socrata `COUNT` aggregates over the full city dataset — those return one number each and never download a row. **Never hit the bulk CSV.** Constants live in `contracts.md` §14. |
+| Seed narratives | **`--templated` is the default.** LLM generation is an optional upgrade. | Forty deterministic templates still retrieve. Four hundred LLM calls eat the phase budget and fail at a nonzero rate with no recovery window before the pitch. |
 
 ## Verified Package Versions (checked against the registry on 2026-08-13)
 
@@ -125,6 +127,7 @@ So PHASE-04 (ingestion) is built and verified with fake embeddings, PHASE-08 (gr
 | 13 | `src/lib/voice/**`, `app/voice/**`, `app/api/voice/**`, `scripts/setup-agent.ts` | 01 |
 | 14 | `app/page.tsx`, `app/layout.tsx`, `app/globals.css`, `src/components/**`, `tailwind.config.ts` | 01 |
 | 15 | `scripts/demo-*.ts`, `docs/**` | 01 |
+| 16 | `scripts/integrate.ts`, `scripts/smoke.ts` | 01; **serial after 02–15** |
 
 Every phase imports **only** from `src/lib/contracts/`, `src/lib/ports.ts`, `src/lib/registry.ts`, and its own files. Never import another phase's module directly — go through the registry. This is what lets fourteen agents work at once without reading each other's code.
 
@@ -215,7 +218,7 @@ Eva, the prior Best-ElevenLabs winner this is modeled on, won on documentation a
 
 **Endpoint pattern verified live on 2026-08-13.** No auth required.
 
-- SODA JSON: `https://data.cityofnewyork.us/resource/76xm-jjuj.json?$limit=50000&$where=initial_call_type!=final_call_type`
+- SODA JSON: `https://data.cityofnewyork.us/resource/76xm-jjuj.json` — used only with small `$limit` slices and `$select=count(1)` aggregates. **Never** `rows.csv?accessType=DOWNLOAD`.
 - Code mapping attachment: `https://data.cityofnewyork.us/api/views/76xm-jjuj/files/1f3c87df-ffa3-4bda-a63c-45aeac003a26?download=true&filename=EMS_incident_dispatch_data_description.xlsx`
 
 **The JSON API returns lowercase snake_case keys that differ from the portal's documented uppercase names. The identifier is `incident_id`, NOT `CAD_INCIDENT_ID`.** Verified sample row keys:
@@ -319,7 +322,8 @@ PHASE-01 is the only prerequisite. Everything after it runs in parallel; the mil
 | M1 Data | 02–06 | Collections + vector indexes, embeddings, NYC incidents, NASEMSO corpus, seeded memory |
 | M2 Brain | 07–09 | Three-collection fan-out, LangGraph with `interrupt()`, decision/postmortem/ePCR writers |
 | M3 Surface | 10–14 | Event bus + SSE, tool routes, change stream worker, ElevenLabs voice, judge dashboard |
-| M4 Stage | 15 | Two-call demo scripted, kill-and-resume rehearsed 3× |
+| M4 Stage | 15 | Two-call demo scripted; kill-and-resume rehearsed 3× |
+| M5 Cutover | 16 | All six ports flipped from fake to real; one smoke path through fire → brief → readback → decision → close |
 
 ## Environment Variables
 

@@ -8,7 +8,7 @@
 
 ## Objective
 
-Build the corpus that makes the second demo call retrieve anything at all: a few hundred `postmortems` narratives and their matching `remediations` documents, derived from real closed NYC incidents where the dispatch read was wrong. Everything here is generated ahead of the pitch and written idempotently, and the `decisions` collection is left deliberately empty.
+Build the corpus that makes the second demo call retrieve anything at all: **about 40** `postmortems` narratives and their matching `remediations`, derived from real closed NYC incidents where the dispatch read was wrong. Templated generation is the default. The `decisions` collection is left deliberately empty.
 
 ## Why This Phase Is Load-Bearing
 
@@ -16,8 +16,9 @@ Without seeded memory, call two in the demo retrieves nothing and the entire the
 
 Two consequences follow, and both are non-negotiable:
 
-1. **Run the seed before going on stage.** Never generate live. Several hundred LLM calls take minutes and have a nonzero failure rate, and there is no recovery window between "the retrieval panel is empty" and the judge's next question.
+1. **Run the seed before going on stage.** Never generate live. Even forty LLM calls have a nonzero failure rate, which is why `--templated` is the default.
 2. **Never seed the `decisions` collection** (Critical Rule 5). It stays empty until the demo and fills live from the voice call. That emptiness *is* the demo: you show `decisions` at zero, run a call, show it non-zero. The script must assert `decisions` is still empty when it finishes and exit non-zero if it is not.
+3. **Do not enlarge `SEED_TARGET`.** Forty narratives plus two curated ones is enough for call two to retrieve a neighbour. Four hundred is a warehouse job.
 
 ## Reference Files (read before implementing)
 
@@ -63,8 +64,9 @@ The whole phase's logic lives here so the script stays a thin argument parser.
 
 ```ts
 export interface SeedOptions {
-  target?: number;        // default 400
-  templated?: boolean;    // default false — deterministic template instead of LLM
+  target?: number;        // default SEED_TARGET (40)
+  templated?: boolean;    // default SEED_DEFAULT_TEMPLATED (true)
+  llm?: boolean;          // opt-in LLM narratives; default false
   concurrency?: number;   // default 8
   seed?: number;          // default 20260813 — fixed so rehearsals are identical
   fromFixtures?: boolean; // default false — read fixtures/incidents.json instead of Atlas
@@ -130,13 +132,13 @@ Query `incidents` for closed historical records where the final call type diverg
 
 The field-to-field comparison requires `$expr`; a plain `$ne` against a field path silently compares to the literal string and returns everything.
 
-Stratify the ~400 selections so no single transition dominates the vector space:
+Stratify the `SEED_TARGET` (40) selections so no single transition dominates:
 
 | Bucket | Minimum | Why |
 |---|---|---|
-| `UNC` → `ARREST` | 60 | Demo call 1 pattern. Retrieval on call 1 must have real neighbours. |
-| `SICK` → `CARD` | 60 | Demo call 2 pattern — the call the whole project is built to land. |
-| All other divergent transitions | remainder | Breadth, so retrieval is not a two-cluster lookup table. |
+| `UNC` → `ARREST` | `SEED_STRATA.uncArrest` (15) | Demo call 1 pattern. |
+| `SICK` → `CARD` | `SEED_STRATA.sickCard` (15) | Demo call 2 pattern. |
+| All other divergent transitions | `SEED_STRATA.other` (10) | Breadth, so retrieval is not a two-cluster lookup table. |
 
 Hard constraint on the remainder: **no single transition may exceed 15% of `target`.** Without that cap the high-volume transitions swallow the tail and every query returns the same handful of neighbours.
 
@@ -216,7 +218,7 @@ One `LlmPort.text()` call per incident. The prompt must produce:
 
 Run generation through `mapWithConcurrency` with a limit of 8. Four hundred narratives lands in roughly 2–4 minutes at that concurrency. Higher limits hit provider rate limits and the retries cost more than the parallelism saves.
 
-Per-narrative failures fall back to the template and increment `llmFailures`. **If more than 10% fail, stop the run and print "rerun with --templated"** rather than grinding through 400 retries.
+Per-narrative failures fall back to the template and increment `llmFailures`. **If more than 10% fail, stop the run and print "already defaulting to templated"** rather than grinding through retries.
 
 #### The templated fallback
 
@@ -247,7 +249,7 @@ Thin CLI over `seedMemory`. Already wired as `npm run seed`.
 
 | Flag | Default | Effect |
 |---|---|---|
-| `--target=N` | 400 | Number of seeded incidents |
+| `--target=N` | `SEED_TARGET` (40) | Number of seeded incidents |
 | `--templated` | off | Skip the LLM entirely |
 | `--concurrency=N` | 8 | LLM parallelism |
 | `--seed=N` | 20260813 | PRNG seed for selection |
@@ -298,7 +300,7 @@ Binding rules in `seedMemory`:
 - [ ] With `EMBEDDINGS_MODE=fake LLM_MODE=fake`, `npm run seed -- --target=20 --templated --from-fixtures` completes and exits 0 with **no other phase's code present**
 - [ ] After any successful run, `db.decisions.countDocuments({})` is exactly `0`, and the script exits non-zero if it is not
 - [ ] Running the script twice in a row produces identical `postmortems` and `remediations` counts (idempotent), and any document with `origin` of `"curated"` or `"live"` present before the second run still exists after it
-- [ ] At `--target=400` against ingested data, the transition histogram shows at least 60 `UNC->ARREST` and at least 60 `SICK->CARD`, and no single transition exceeds 15% of the total
+- [ ] At default `--target=40` against ingested data, the transition histogram shows at least 15 `UNC->ARREST` and at least 15 `SICK->CARD`
 - [ ] Two runs with the same `--seed` select an identical set of `incidentId`s; two runs with different seeds do not
 - [ ] Every written `postmortems` and `remediations` document has a non-empty `embeddedText` and an `embedding` array whose length equals `env.embeddingDim`
 - [ ] Every seeded narrative has a word count between 60 and 110 inclusive
@@ -308,7 +310,7 @@ Binding rules in `seedMemory`:
 - [ ] Family medians are computed with exactly one aggregation call per run (verifiable by logging the call count or by inspection)
 - [ ] `fixtures/curated-postmortems.json` parses, contains at most 3 entries, and carries the `note` field naming the synthetic detail
 - [ ] Every written curated postmortem has `origin: "curated"` and an `incidentId` that exists in the `incidents` collection
-- [ ] Curated documents are under 1% of the total seeded postmortem count at `--target=400`
+- [ ] Curated documents are at most `CURATED_POSTMORTEM_CAP` (3)
 - [ ] `--templated` completes with zero LLM calls (verifiable by running with no `OPENAI_API_KEY` set and `LLM_MODE=real`)
 
 ## Verification

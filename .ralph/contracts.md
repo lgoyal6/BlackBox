@@ -504,7 +504,9 @@ Latency is a judged criterion. Two consequences baked into the contract: `record
   "drill": "tsx scripts/kill-resume-drill.ts",
   "agent:setup": "tsx scripts/setup-agent.ts",
   "demo:fire": "tsx scripts/demo-fire.ts",
-  "preflight": "tsx scripts/demo-preflight.ts"
+  "preflight": "tsx scripts/demo-preflight.ts",
+  "integrate": "tsx scripts/integrate.ts",
+  "smoke": "tsx scripts/smoke.ts"
 }
 ```
 
@@ -520,3 +522,36 @@ PHASE-01 creates `package.json` with **all** of these, including scripts whose t
 - **`EMBEDDING_DIM` must equal every vector index's `numDimensions`.** A mismatch returns zero results with no error — the single most expensive failure mode in this build. Assert it at both write and index-creation time.
 - **Never construct `MemorySaver`.** `MongoDBSaver` only, everywhere.
 - **Never read `_groundTruth`** outside seeding scripts and the closing metrics script.
+- **Never download the NYC bulk CSV.** Atlas holds the demo slice in §14. City-wide numbers come from Socrata `COUNT` aggregates only.
+
+## 14. Demo corpus (hackathon scale — do not enlarge)
+
+This is a one-day demo, not a warehouse. Every ingest script must use these constants. Raising a limit "to be safe" is how this phase eats an hour.
+
+```ts
+export const SOCRATA_BASE = "https://data.cityofnewyork.us/resource/76xm-jjuj.json";
+export const SOCRATA_YEAR_FLOOR = "2024-01-01T00:00:00";
+
+/** Row downloads. Four requests, ~180 documents, never paged past these limits. */
+export const DEMO_SLICES = [
+  { name: "arrest",    where: "initial_call_type='UNC' AND final_call_type='ARREST' AND incident_datetime>'2024-01-01T00:00:00'", limit: 40 },
+  { name: "cardiac",   where: "initial_call_type='SICK' AND final_call_type='CARD' AND incident_datetime>'2024-01-01T00:00:00'",   limit: 40 },
+  { name: "divergent", where: "initial_call_type!=final_call_type AND incident_datetime>'2024-01-01T00:00:00'",                    limit: 80 },
+  { name: "control",   where: "initial_call_type=final_call_type AND incident_datetime>'2024-01-01T00:00:00'",                     limit: 20 },
+] as const;
+
+export const SEED_TARGET = 40;
+export const SEED_DEFAULT_TEMPLATED = true;   // LLM generation is opt-in via --llm
+export const SEED_STRATA = { uncArrest: 15, sickCard: 15, other: 10 } as const;
+export const CURATED_POSTMORTEM_CAP = 3;
+export const REMEDIATION_FAILURE_FLOOR = 10;
+
+/** NASEMSO chapters worth embedding for this demo. If section detection cannot isolate them, fall back to the full PDF rather than spending 20 minutes on a better splitter. */
+export const RUNBOOK_CHAPTER_FILTER = [
+  "Cardiovascular", "Cardiac", "Airway", "Respiratory", "Altered",
+  "Toxicology", "Overdose", "Field Triage",
+] as const;
+```
+
+Pitch numbers and reclassification priors are **Socrata aggregate queries** (`$select=count(1)` / `$group`). They return tens of rows, never millions, and are cached to `data/pitch-numbers.json` and `data/reclass-priors.json`. Those files are what the slides and the brief read on stage — never a live network call during the pitch.
+
