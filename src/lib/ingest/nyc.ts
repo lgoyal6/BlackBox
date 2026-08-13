@@ -131,7 +131,7 @@ async function socrataGetOnce(params: Record<string, string>): Promise<SocrataRo
   const url = buildSocrataUrl(params);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (env.socrataAppToken) headers["X-App-Token"] = env.socrataAppToken;
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(90_000) });
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(120_000) });
   const body = await res.text();
   if (!body.trim()) {
     throw new Error(
@@ -159,13 +159,18 @@ function isTransientSocrata(error: unknown): boolean {
 }
 
 async function socrataGet(params: Record<string, string>): Promise<SocrataRow[]> {
-  try {
-    return await socrataGetOnce(params);
-  } catch (error) {
-    if (!isTransientSocrata(error)) throw error;
-    console.warn("Socrata retry after transient error:", error instanceof Error ? error.message : error);
-    return socrataGetOnce(params);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await socrataGetOnce(params);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientSocrata(error) || attempt === 3) throw error;
+      console.warn(`Socrata retry ${attempt}/2 after transient error:`, error instanceof Error ? error.message : error);
+      await new Promise((r) => setTimeout(r, 2_000 * attempt));
+    }
   }
+  throw lastError;
 }
 
 function readCount(rows: SocrataRow[]): number {
