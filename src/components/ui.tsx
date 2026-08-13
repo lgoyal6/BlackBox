@@ -14,9 +14,9 @@ export interface CardProps {
 export function Card({ title, children, className, aside }: CardProps): ReactElement {
   return (
     <section
-      className={`flex flex-col rounded-xl border border-bb-border bg-bb-surface p-[18px] ${className ?? ""}`}
+      className={`flex flex-col rounded-xl border border-bb-border bg-bb-surface p-4 ${className ?? ""}`}
     >
-      <div className="mb-[14px] flex items-center justify-between gap-3">
+      <div className="mb-[10px] flex items-center justify-between gap-3">
         <SectionLabel>{title}</SectionLabel>
         {aside}
       </div>

@@ -21,6 +21,11 @@
   --color-bb-red-pill: #7f1d1d;
   --color-bb-red-pill-text: #fee2e2;
 
+  /* System health, a different axis from brand and gate: is the pipe up. Spent only on the
+     connection dot, so it never competes with the red that means BlackBox captured something.
+     reference.png already puts green on the checkpoint marker, so it is in the language. */
+  --color-bb-live: #34d399;
+
   /* Amber is spent on exactly one thing: the readback gate. */
   --color-bb-amber: #fbbf24;
   --color-bb-amber-surface: #3b2a08;
@@ -39,6 +44,17 @@
 /* Tabular figures everywhere a number changes in place, so the layout never twitches. */
 .bb-tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* A scroll region that ends flush with its container edge reads as "that is all there is".
+   The fade is the only affordance telling a judge there is more below, and it costs no
+   layout. Paired with bb-scroll on every clipped list. */
+.bb-fade-b {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+}
+/* Removed once the region is scrolled to the end, so the last row is never dimmed. */
+.bb-fade-b[data-at-end="true"] {
+  mask-image: none;
 }
 
 .bb-scroll {
