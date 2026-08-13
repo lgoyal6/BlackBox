@@ -105,7 +105,8 @@
 | 2026-08-13 | Browser WebRTC as the primary voice transport, Twilio outbound timeboxed to 30 min | An actual ringing phone is worth real points because the pitch claims the system calls the medic, but it is an upgrade and not a dependency. Native audio bindings are excluded outright — no time to debug native modules today. |
 | 2026-08-13 | **Demo slice, not the 30M-row dataset.** ~180 incidents, 40 templated postmortems, NASEMSO chapters relevant to the two calls | A hackathon demo needs retrieval to look real, not a warehouse. The 15.0% pitch number still comes from four Socrata COUNT aggregates — one number each, never a row download. Never hit the bulk CSV. Constants in contracts.md §14. |
 | 2026-08-13 | **`--templated` is the default** for seed narratives; LLM is opt-in | Forty deterministic templates still retrieve. Four hundred LLM calls eat the phase budget. |
-| 2026-08-13 | **PHASE-16 is a serial fake-to-real cutover** after the parallel wave | Every other phase verifies against fakes. Without an owned cutover, the pitch can silently run on fixtures. |
+| 2026-08-13 | **`RetrievalSource` includes `"remediations"`** with `SOURCE_WEIGHTS.remediations = 1.25` | `failureMemory` returns `Hit[]` and queries remediations; without this member there is no honest value for `Hit.source`. Fan-out stays three collections (`decisions`, `postmortems`, `runbooks`). |
+| 2026-08-13 | **WebRTC uses `conversationToken` (`getWebrtcToken`), not a signed URL** | `@elevenlabs/react` 1.12.0: a `signedUrl` session is WebSocket-only; passing it with `connectionType: "webrtc"` throws. Added `VoicePort.conversationToken()` and `GET /api/voice/conversation-token`. The signed-url route stays for the WebSocket fallback. |
 
 ## Open Items
 

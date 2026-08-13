@@ -41,7 +41,7 @@ export const EMBED_CACHE = "_embed_cache";
 export const WATCH_STATE = "_watch_state";
 
 export const VECTOR_COLLECTIONS = [DECISIONS, REMEDIATIONS, RUNBOOKS, POSTMORTEMS] as const;
-/** The three-source fan-out pipeline. Order matters: index 0 is the base collection. */
+/** The three-source fan-out pipeline. Order matters: index 0 is the base collection. Remediations are queried separately by failureMemory — they are not part of this union. */
 export const FAN_OUT_COLLECTIONS = [DECISIONS, POSTMORTEMS, RUNBOOKS] as const;
 
 export const vectorIndexName = (coll: string) => `vs_${coll}`;   // vs_decisions, ...
@@ -77,7 +77,7 @@ export type DecisionOutcome = "pending" | "worked" | "failed" | "unknown";
 export type RemediationOutcome = "success" | "failure";
 export type MemoryOrigin = "seeded" | "curated" | "live";
 export type TimelineSource = "medic" | "agent" | "system";
-export type RetrievalSource = "decisions" | "postmortems" | "runbooks";
+export type RetrievalSource = "decisions" | "postmortems" | "runbooks" | "remediations";
 export type GraphNode =
   | "triage" | "signature_match" | "brief" | "plan" | "readback_gate"
   | "execute_record" | "verify" | "record_decision" | "await_input" | "postmortem";
@@ -166,6 +166,8 @@ export interface GroundTruth {
   dispatchResponseSeconds: number | null;
   incidentResponseSeconds: number | null;
   incidentTravelSeconds: number | null;
+  /** Derived, never stored as a Socrata field: response + travel, falling back to response alone. Used for costMinutes. */
+  incidentTotalSeconds?: number | null;
 }
 
 export interface IncidentDoc {
@@ -285,10 +287,10 @@ export interface ReclassPrior {
   top: { finalCallType: string; family: CallTypeFamily; pct: number; n: number }[];
 }
 
-export const SIGNATURE_MATCH_FLOOR = 0.62;   // below this, signatureMatch returns null
+export const SIGNATURE_MATCH_FLOOR = 0.62;   // compared to the top hit's RAW cosine, never to rrf (RRF values sit near 0.02)
 export const RRF_K = 60;
 export const SOURCE_WEIGHTS: Record<RetrievalSource, number> = {
-  decisions: 1.3, postmortems: 1.2, runbooks: 1.0,
+  decisions: 1.3, remediations: 1.25, postmortems: 1.2, runbooks: 1.0,
 };
 export const SPOKEN_WORD_CAP = 40;
 ```
@@ -378,6 +380,20 @@ export interface RetrievalPort {
   reclassPrior(initialCallType: string, dispatchArea?: string): Promise<ReclassPrior | null>;
 }
 
+export interface MemoryPort {
+  recordDecision(input: {
+    incidentId: string;
+    utterance: string;
+    actionChosen: string;
+    rationale: string;
+    optionsConsidered?: string[];
+    outcome?: DecisionOutcome;
+  }): Promise<string>;                 // inserted decision id
+  updateOutcome(decisionId: string, outcome: DecisionOutcome): Promise<void>;
+  generateAndWrite(incidentId: string): Promise<string>;  // live postmortem id
+  draftPcr(incidentId: string): Promise<{ text: string }>;
+}
+
 export interface LlmPort {
   json<T>(prompt: string, schema: unknown, opts?: { model?: string }): Promise<T>;
   text(prompt: string, opts?: { model?: string; maxWords?: number }): Promise<string>;
@@ -397,7 +413,10 @@ export interface GraphPort {
 
 export interface VoicePort {
   speak(incidentId: string, text: string): Promise<void>;
+  /** WebSocket session. Do not pass this url to a WebRTC startSession — that throws. */
   signedUrl(): Promise<{ url: string; agentId: string }>;
+  /** WebRTC session token. This is what the operator console uses. */
+  conversationToken(): Promise<{ token: string; agentId: string }>;
 }
 ```
 
@@ -408,24 +427,26 @@ Resolution is by env var and **static import paths**, so adding a real implement
 ```ts
 export async function embeddings(): Promise<EmbeddingsPort>;   // EMBEDDINGS_MODE
 export async function retrieval(): Promise<RetrievalPort>;      // RETRIEVAL_MODE
+export async function memory(): Promise<MemoryPort>;            // MEMORY_MODE
 export async function llm(): Promise<LlmPort>;                  // LLM_MODE
 export async function events(): Promise<EventsPort>;            // EVENTS_MODE
 export async function graph(): Promise<GraphPort>;              // GRAPH_MODE
 export async function voice(): Promise<VoicePort>;              // VOICE_MODE
 ```
 
-Each resolves `fake` → `@/lib/fakes/<name>`, otherwise the fixed real path (`@/lib/embeddings`, `@/lib/retrieval`, `@/lib/llm`, `@/lib/events`, `@/lib/graph`, `@/lib/voice`). Each real module **must default-export an object satisfying its port** at exactly that path — that is the whole integration contract.
+Each resolves `fake` → `@/lib/fakes/<name>`, otherwise the fixed real path (`@/lib/embeddings`, `@/lib/retrieval`, `@/lib/memory`, `@/lib/llm`, `@/lib/events`, `@/lib/graph`, `@/lib/voice`). Each real module **must default-export an object satisfying its port** at exactly that path — that is the whole integration contract.
 
 ### Fake behaviour (PHASE-01 owns; every phase depends on it)
 
 | Fake | Behaviour |
 |---|---|
 | `fakes/embeddings` | `sha256(text)` → deterministic unit vector of `EMBEDDING_DIM`. Same text always same vector, different texts near-orthogonal. Zero network. |
-| `fakes/retrieval` | Returns hits from `fixtures/hits.json`, filtered by a substring match on the query. `signatureMatch` returns `null` when the query contains `"transfer"`, a match otherwise. |
+| `fakes/retrieval` | Returns hits from `fixtures/hits.json`, filtered by a substring match on the query. `signatureMatch` returns `null` when the query contains `"transfer"`, a match otherwise. `failureMemory` returns only hits with `source: "remediations"` or postmortems whose meta.severityDelta > 0. |
+| `fakes/memory` | `recordDecision` throws if `rationale` is empty/whitespace (prefix `MISSING_RATIONALE:`), otherwise returns a fake id and records the call. `generateAndWrite` returns a fake id. `draftPcr` returns a short unsigned-draft string. Zero database. |
 | `fakes/llm` | Templated deterministic strings. `json()` returns the schema's example. Zero network. |
 | `fakes/events` | Appends to a module-level array, exposes `__drain()` for assertions. |
 | `fakes/graph` | Walks `GRAPH_NODE_ORDER`, raising a `readback` interrupt at `readback_gate` on the first pass. |
-| `fakes/voice` | `console.log` of what it would speak; `signedUrl` returns a dummy. |
+| `fakes/voice` | `console.log` of what it would speak; `signedUrl` and `conversationToken` return dummies. |
 
 ## 10. API routes
 
@@ -467,7 +488,11 @@ Latency is a judged criterion. Two consequences baked into the contract: `record
 
 ### `GET /api/voice/signed-url` (PHASE-13)
 
-`{ url: string; agentId: string }`. Server-side only; the ElevenLabs API key never reaches the browser.
+`{ url: string; agentId: string }`. WebSocket session. Server-side only; the ElevenLabs API key never reaches the browser.
+
+### `GET /api/voice/conversation-token` (PHASE-13)
+
+`{ token: string; agentId: string }`. WebRTC session. **This is what `app/voice` calls.** A signed URL passed to `startSession({ connectionType: "webrtc" })` throws in `@elevenlabs/react` 1.12.0 — confirmed against the package's `ConnectionFactory`. Server-side only; the API key never reaches the browser.
 
 ## 11. Fixtures (PHASE-01 owns; other phases read)
 

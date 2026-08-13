@@ -8,33 +8,47 @@
 
 ## Objective
 
-Build the LangGraph state machine that runs a call end to end, checkpointed to MongoDB Atlas with `MongoDBSaver`, with two `interrupt()` gates — the aviation-style readback and the between-turns park — and expose it as `GraphPort`. Prove the kill-and-resume works from a text-mode drill before any voice layer exists.
+Implement `GraphPort` as a LangGraph 1.4.9 `StateGraph` checkpointed with `MongoDBSaver` 1.4.0, using `incidentId` as `thread_id`. Wire the memory nodes that make this a recall system rather than a dictation tool — signature match, a spoken brief, and a plan that excludes known-bad paths from a forty-document seed corpus — and park the graph at `interrupt()` for aviation-style readback so a killed process can resume from Atlas.
 
-## Why This Phase Carries The Demo
+## Why This Phase Is The Stage Moment
 
-Two things live here and neither can be cut:
+The kill-and-resume in front of the judges is the one part of the demo that is hard to fake. It only works if every invocation uses `MongoDBSaver` and never `MemorySaver`. With an in-memory saver, `interrupt()` still appears to work inside one process and the crash recovery fails on stage with no warning. That is the highest-consequence rule in this build.
 
-1. **`signature_match` and the failure-exclusion logic in `plan`** are what make this a memory project rather than a runbook lookup. If `plan` is not visibly declining a course of action because memory says it went badly before, this is a dictation tool with extra infrastructure.
-2. **The kill-and-resume.** Mid-demo, with the agent waiting on a confirmation, the process is killed in front of the judges and restarted, and the call continues. Fifteen seconds, thematically perfect, and the only part of the demo that is hard to fake.
+This phase does **not** own fake-to-real cutover or the end-to-end smoke. PHASE-16 owns `scripts/integrate.ts` and `scripts/smoke.ts` and will *call* `npm run drill`. Do not create those files, do not flip `GRAPH_MODE` for the whole app, and do not write a second smoke path.
 
-Everything in this spec is downstream of protecting those two.
+## Do This First (before writing any node)
+
+**Confirm v1 export names against the installed types.** Packages are pinned in `overview.md`: `@langchain/langgraph` 1.4.9 and `@langchain/langgraph-checkpoint-mongodb` 1.4.0. Newer LangGraph docs also mention `StateSchema` and `ReducedValue`. This project locked `interrupt()`, `Command`, `StateGraph`, and `Annotation` — use those if 1.4.9 exports them. Open `node_modules/@langchain/langgraph/dist/index.d.ts` (or the package's exported `.d.ts`) and copy the names that are actually there. Do not guess, and do not copy a v0 import path from memory. If `isInterrupted` is not exported, read `result.__interrupt__` instead. Log the confirmed names in `.ralph/agents.md` under Technical Decisions.
+
+Documented 1.4 surfaces this spec will use once types confirm them:
+
+```ts
+import {
+  Annotation,
+  Command,
+  END,
+  START,
+  StateGraph,
+  interrupt,
+} from "@langchain/langgraph";
+import { MongoDBSaver } from "@langchain/langgraph-checkpoint-mongodb";
+```
+
+`interrupt()` **re-executes the interrupted node from the top** on resume. Everything before the `interrupt()` call runs a second time. Put no writes, no `EventsPort.emit`, and no non-idempotent I/O before `interrupt()`. This is the single most expensive gotcha in this phase.
 
 ## Reference Files (read before implementing)
 
 - `.ralph/contracts.md` §7 — `IncidentState`, `PendingReadback`, `ReadbackConfirmation`, `InterruptPayload`. `thread_id` **is** `incidentId`.
-- `.ralph/contracts.md` §6 — `Hit`, `SignatureMatch`, `PlanResult`, `ExcludedPath`, `ReclassPrior`.
-- `.ralph/contracts.md` §4 — `GraphNode`, `GRAPH_NODE_ORDER`, `labelFor()`, `callTypeFamily()`.
-- `.ralph/contracts.md` §8 — the `node`, `readback`, `decision`, `retrieval`, and `checkpoint` event payloads the dashboard renders.
-- `.ralph/contracts.md` §9 — `GraphPort`, and the registry's fixed real path.
-- `.ralph/overview.md` — The Stage Moment, Critical Rules 2 and 3, the Scope Guardrail, the graph diagram.
-- `src/lib/fakes/graph.ts` (PHASE-01) — the scripted walk your real implementation replaces. PHASE-11 and PHASE-14 are built against it, so keep the observable behaviour identical.
-- `node_modules/@langchain/langgraph/dist/*.d.ts` — **read the installed types before writing any import.** See the note below.
-
-### Confirm the API against the installed package, do not guess
-
-This project pins `@langchain/langgraph` **1.4.9** and `@langchain/langgraph-checkpoint-mongodb` **1.4.0**. You need `StateGraph`, `Annotation`, `START`, `END`, `interrupt`, and `Command`. The v1 barrel is expected to re-export all of them, and the checkpointer package is expected to export `MongoDBSaver`.
-
-**If any name does not resolve, grep the package's own type declarations rather than guessing a plausible alternative.** The same applies to the shape of the interrupt result on `invoke()`, the generic parameter order of `interrupt<TPayload, TResume>()`, the `MongoDBSaver` constructor options, and the property that carries a pending interrupt on `getState()`. Guessing any of these costs a compile cycle and, worse, can produce something that type-checks and silently does the wrong thing. Ten minutes reading `.d.ts` files at the start of a ninety-minute phase is the cheapest ten minutes in the build.
+- `.ralph/contracts.md` §4 — `GRAPH_NODE_ORDER`, `GraphNode`. Node names in the graph must be these strings, because the dashboard footer and the fake graph walk the same list.
+- `.ralph/contracts.md` §6 — `SignatureMatch`, `PlanResult`, `ExcludedPath`, `Hit`. Do not redefine them.
+- `.ralph/contracts.md` §9 — `GraphPort` (`start`, `resume`, `state`) and the registry's fixed real path `@/lib/graph`.
+- `.ralph/contracts.md` §14 — demo corpus. `SEED_TARGET` is 40. Plan exclusion must work against that size, not a warehouse.
+- `.ralph/overview.md` — LangGraph diagram, the stage moment, Critical Rules 2 and 3, Scope Guardrail (the agent never proposes treatment).
+- `.ralph/specs/phase-16-integration-cutover.md` — so you do not duplicate `integrate` / `smoke`. This phase owns the drill; 16 calls it.
+- `src/lib/fakes/graph.ts` (PHASE-01) — first pass returns a `readback` interrupt at `readback_gate`; after resume it returns `null`. Match that shape so PHASE-11's `confirm_readback` works against either implementation.
+- `fixtures/incidents.json` and `fixtures/hits.json` — `graph:local` and the plan node are verified against these with retrieval faked.
+- `src/lib/db/client.ts` — pass the shared `getClient()` into `MongoDBSaver`. Do not construct a second `MongoClient`.
+- `src/lib/db/indexes.ts` is PHASE-02. It deliberately does **not** create `checkpoints` or `checkpoint_writes`. The saver creates and indexes those on `setup()`.
 
 ## Parallel-Safe Contract
 
@@ -42,394 +56,362 @@ This project pins `@langchain/langgraph` **1.4.9** and `@langchain/langgraph-che
 
 | Path | Purpose |
 |---|---|
-| `src/lib/graph/state.ts` | `Annotation.Root` state definition and reducers |
-| `src/lib/graph/checkpointer.ts` | `MongoDBSaver` construction, cached |
-| `src/lib/graph/trace.ts` | Node wrappers that emit `node` events and append to `nodeTrail` |
-| `src/lib/graph/nodes/*.ts` | One file per node, ten in total |
-| `src/lib/graph/build.ts` | `StateGraph` wiring and compile |
 | `src/lib/graph/index.ts` | Default export satisfying `GraphPort` |
-| `scripts/run-graph-local.ts` | Drive a full call from the CLI with no voice layer |
-| `scripts/kill-resume-drill.ts` | Automate the stage moment |
+| `src/lib/graph/state.ts` | `Annotation.Root` (or the 1.4.9 equivalent) for `IncidentState` |
+| `src/lib/graph/checkpointer.ts` | `MongoDBSaver` factory plus `setup()` |
+| `src/lib/graph/compile.ts` | Node wiring, `compile({ checkpointer })` |
+| `src/lib/graph/nodes.ts` | All graph nodes |
+| `src/lib/graph/wrap.ts` | Enter/exit `node` events; interrupt payload mapping |
+| `scripts/run-graph-local.ts` | `npm run graph:local` |
+| `scripts/kill-resume-drill.ts` | `npm run drill` |
 
-`npm run graph:local` and `npm run drill` already point at those scripts (`contracts.md` §12). Do not edit `package.json`.
+Do not edit `package.json` — `"graph:local"` and `"drill"` already exist in `contracts.md` §12. Do not create `scripts/integrate.ts` or `scripts/smoke.ts`. Do not import `@/lib/memory/decisions`, `@/lib/memory/postmortem`, or `@/lib/memory/epcr` — those are PHASE-09, and cross-phase access goes through the registry, which has no memory port. Graph nodes update `IncidentState` and emit events; they do not insert `DecisionDoc` or `PostmortemDoc` rows.
 
 ### Ports consumed
 
 | Port | Used for | Set this to build in isolation |
 |---|---|---|
-| `RetrievalPort` | `signature_match`, `plan`, `brief` | `RETRIEVAL_MODE=fake` |
-| `LlmPort` | `plan` only | `LLM_MODE=fake` |
-| `EventsPort` | `node`, `readback`, `decision`, `retrieval` events | `EVENTS_MODE=fake` |
+| `RetrievalPort` | `signatureMatch`, `failureMemory`, `reclassPrior` | `RETRIEVAL_MODE=fake` |
+| `LlmPort` | Brief prose and plan step phrasing | `LLM_MODE=fake` |
+| `EventsPort` | `node` enter/exit, `readback`, `retrieval` | `EVENTS_MODE=fake` |
 
-The PHASE-01 retrieval fake is built for this: `signatureMatch` returns `null` when the query contains `"transfer"` and a populated match otherwise, so both the "new signature" and "we have seen this" branches of `brief` are exercisable before PHASE-07 exists.
+```
+GRAPH_MODE=real
+RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake
+EMBEDDINGS_MODE=fake VOICE_MODE=fake
+```
 
-**The one thing this phase cannot fake is the checkpointer.** Critical Rule 2 forbids an in-memory saver, so this phase needs a reachable Atlas cluster with the `checkpoints` and `checkpoint_writes` collections (the saver creates them). It needs no other phase's *code*, which is what parallel-safe means here. If `incidents` is empty because PHASE-04 has not run, `run-graph-local.ts --from-fixture` seeds a single incident from `fixtures/incidents.json`.
+With those fakes this phase needs no embedding key, no ElevenLabs key, and no other phase's code. It does need Atlas, because `MongoDBSaver` is the deliverable. The fake retrieval returns hits from `fixtures/hits.json`; the plan node must produce `excludedPaths` from those hits so exclusion is testable on a forty-document (or fixture-sized) corpus.
 
 ### Port implemented
 
 `GraphPort`, **default-exported from `src/lib/graph/index.ts`** — the registry's fixed real path `@/lib/graph` (`contracts.md` §9).
 
 ```ts
+import type { GraphPort } from "@/lib/ports";
+
 const graph: GraphPort = { start, resume, state };
 export default graph;
 ```
 
-### Never construct a `MemorySaver`
-
-Not in the graph, not in a script, not in a test, not temporarily while debugging. With an in-memory saver, `interrupt()` still appears to work inside a single process, every local test passes, and the kill-and-resume fails on stage with no prior warning. This is the highest-consequence rule in the build and there is a grep-based acceptance criterion for it.
+Use `satisfies GraphPort` or an explicit annotation so a signature drift is a compile error. A named export, or the object living only in `compile.ts` with no re-export, produces a silent `FAKE PORT` fallback.
 
 ## Files to Create
 
 ### `src/lib/graph/state.ts`
 
 ```ts
-export const IncidentAnnotation = Annotation.Root({
-  incidentId: Annotation<string>,
-  displayId: Annotation<string>,
-  ref: Annotation<string>,
-  status: Annotation<IncidentStatus>,
-  cad: Annotation<CadFields>,
-  callTypeFamily: Annotation<CallTypeFamily>,
+import { Annotation } from "@langchain/langgraph";
+import type { IncidentState } from "@/lib/contracts";
 
-  timeline:          Annotation<TimelineEntry[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
-  nodeTrail:         Annotation<GraphNode[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
-  retrieved:         Annotation<Hit[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
-  decisionsRecorded: Annotation<string[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
+export function concatReducer<T>(left: T[], right: T | T[]): T[];
 
-  signature: Annotation<SignatureMatch | null>,
-  plan: Annotation<PlanResult | null>,
-  brief: Annotation<string | null>,
-  pendingReadback: Annotation<PendingReadback | null>,
-  lastConfirmation: Annotation<ReadbackConfirmation | null>,
-  closeRequested: Annotation<boolean>,
-});
-
+export const IncidentAnnotation: ReturnType<typeof Annotation.Root>;
 export type GraphState = typeof IncidentAnnotation.State;
 ```
 
-Four channels concat; every other channel is last-write-wins, which is the `Annotation` default. Confirm the exact `Annotation` call form against the installed types — the bare-channel and options-object forms differ.
+Confirm `Annotation.Root` against installed 1.4.9 types. If 1.4.9 exports a different state helper and not `Annotation`, use that helper and log the substitution in `agents.md`. Do not invent a third style.
 
-Add a compile-time guard so the graph state cannot silently drift from the contract:
+Reducers, from `contracts.md` §7:
 
-```ts
-// Fails to compile if GraphState stops satisfying the contract's IncidentState.
-const _contractCheck: IncidentState = undefined as unknown as GraphState;
-void _contractCheck;
-```
+| Field | Reducer |
+|---|---|
+| `timeline` | concat |
+| `nodeTrail` | concat |
+| `retrieved` | concat |
+| `decisionsRecorded` | concat |
+| every other `IncidentState` field | last-write-wins (replace) |
 
-Also define and export the resume payload, validated with Zod v4 inside the interrupting nodes. `GraphPort.resume(incidentId, value: unknown)` types the value as `unknown`, so this shape is PHASE-08's to define and PHASE-11 reads it from here:
-
-```ts
-export const ResumeInput = z.union([
-  z.object({ kind: z.literal("readback"), confirmed: z.boolean(), verbatimOk: z.boolean() }),
-  z.object({
-    kind: z.literal("turn"),
-    text: z.string().optional(),
-    source: z.enum(["medic", "agent", "system"]).optional(),
-    closeRequested: z.boolean().optional(),
-    pendingReadback: z.custom<PendingReadback>().optional(),
-  }),
-]);
-export type ResumeInput = z.output<typeof ResumeInput>;
-```
-
-Parse it inside the node and throw a message naming the expected shape on mismatch. A malformed resume value that silently no-ops is indistinguishable on stage from a broken checkpointer.
+`concatReducer` must accept a single item or an array so a node can return `{ timeline: [entry] }` without wrapping. Default empty arrays for the concat fields so the first write is not `concat(undefined, x)`.
 
 ### `src/lib/graph/checkpointer.ts`
 
 ```ts
-export function getCheckpointer(): MongoDBSaver;
+import { MongoDBSaver } from "@langchain/langgraph-checkpoint-mongodb";
+import type { MongoClient } from "mongodb";
+
+export function createCheckpointer(client: MongoClient): MongoDBSaver;
+export async function ensureCheckpointer(client: MongoClient): Promise<MongoDBSaver>;
 ```
 
-Construct it with the **shared client** from `@/lib/db/client` — never a second `MongoClient`, which would double the connection pool and make the Atlas metrics view misleading during the demo.
+Construct with the documented `MongoDBSaverParams` from 1.4.0:
 
-| Option | Value |
+```ts
+new MongoDBSaver({
+  client,                                    // getClient() from @/lib/db/client
+  dbName: env.mongodbDb,                     // same database as the rest of the app
+  checkpointCollectionName: CHECKPOINTS,     // "checkpoints"
+  checkpointWritesCollectionName: CHECKPOINT_WRITES, // "checkpoint_writes"
+})
+```
+
+Call `await saver.setup()` inside `ensureCheckpointer` before the first compile. The 1.4.0 README states you need to call `.setup()` the first time; it is idempotent and creates the compound indexes the saver queries by. Cache the saver on `globalThis` in development the same way PHASE-01 caches the Mongo client, or hot reload will create a second saver against a second implied setup.
+
+**Never import or construct `MemorySaver`.** Not in tests, not in `graph:local`, not behind a flag. `rg MemorySaver src/lib/graph scripts/run-graph-local.ts scripts/kill-resume-drill.ts` must return nothing, and a repo-wide grep is an acceptance criterion.
+
+### `src/lib/graph/wrap.ts`
+
+```ts
+import type { GraphNode, InterruptPayload, IncidentState } from "@/lib/contracts";
+
+export function threadConfig(incidentId: string): { configurable: { thread_id: string } };
+
+export function wrapNode(
+  name: GraphNode,
+  fn: (state: IncidentState) => Promise<Partial<IncidentState>>,
+): (state: IncidentState) => Promise<Partial<IncidentState>>;
+
+export function interruptPayloadFromInvokeResult(result: unknown): InterruptPayload | null;
+```
+
+`threadConfig` returns `{ configurable: { thread_id: incidentId } }` and nothing else. Mixing in a different id is how resume silently starts a new empty thread.
+
+`wrapNode` emits `{ kind: "node", payload: { node, phase: "enter" } }` **after** the node body returns, and `{ phase: "exit" }` as well — except for `readback_gate` and `await_input`, which must not emit anything until **after** `interrupt()` has returned. Implement that by making those two nodes call `interrupt()` themselves (unwrapped for the pre-interrupt region) rather than putting emit inside `wrapNode` before `fn()`. A wrapper that always emits on enter will duplicate `node` events on every resume, because the node restarts from the top.
+
+`interruptPayloadFromInvokeResult` reads `__interrupt__` from the invoke result (LangGraph 1.x returns `{ value }` objects in that array). If the value already matches `InterruptPayload`, return it. If the array is missing or empty, return `null`. Do not invent a third payload shape.
+
+### `src/lib/graph/nodes.ts`
+
+```ts
+export async function triage(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function signatureMatchNode(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function brief(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function plan(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function readbackGate(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function executeRecord(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function verify(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function recordDecisionNode(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function awaitInput(state: IncidentState): Promise<Partial<IncidentState>>;
+export async function postmortemNode(state: IncidentState): Promise<Partial<IncidentState>>;
+```
+
+Node names passed to `addNode` must be the `GraphNode` strings in `GRAPH_NODE_ORDER`. Function names in TypeScript may differ; the graph key may not.
+
+#### `triage`
+
+No LLM call. Load is already in state from `start()`. Set `status` to `"en_route"` if it was `"dispatched"`, append `"triage"` to `nodeTrail`, and stop. Do not read `_groundTruth`. Do not call `retrieval()` or `llm()`.
+
+#### `signatureMatchNode`
+
+Build an `IncidentDoc`-shaped object from state (the fields `signatureMatch` needs: `incidentId`, `displayId`, `cad`, `callTypeFamily`, `timeline`) and call `(await retrieval()).signatureMatch(incident)`. Write `signature` onto state. Concatenate returned `hits` onto `retrieved`. Emit a `retrieval` event with the query string you used.
+
+A `null` signature is a first-class result. Do not coerce it into a fake match.
+
+#### `brief`
+
+Fifty-five words or fewer, spoken prose, no raw dispatch codes. Use `labelFor` for every call type. When `state.signature` is `null`, the brief **must contain the exact phrase** `new signature, no prior history`. When it is populated, mention `signature.displayId` and the summary, then optionally one line from `(await retrieval()).reclassPrior(cad.initialCallType, cad.dispatchArea)` when that returns non-null.
+
+You may call `llm().text` with `maxWords: 55`, or template the string deterministically. Either way, post-filter: if the output contains a bare code from `CODE_LABELS` as a whole word, replace it with `labelFor(code)` before returning. Count words on whitespace and truncate rather than shipping a 56th word.
+
+#### `plan`
+
+This node is what makes the second demo call a memory demo. It must produce a non-empty `excludedPaths` on a SICK-to-cardiac incident when failure memory exists, **including on a 40-document templated seed** (`SEED_TARGET = 40`). Do not require a large corpus, a high raw-score floor, or LLM-quality narratives. If `failureMemory` returns hits, map them. If a `callTypeFamily` filter returns empty, retry once with no family filter and log that you did. If the mapped list is still empty, log a warning containing `excludedPaths empty` — do not throw, and do not invent a path.
+
+```ts
+const hits = await (await retrieval()).failureMemory(query, state.callTypeFamily);
+```
+
+`query` is built from `labelFor(cad.initialCallType)`, borough, dispatch area, and recent medic timeline text — the same class of string `signatureMatch` uses, so fake retrieval's substring match against `fixtures/hits.json` actually returns rows. Map each hit to `ExcludedPath`:
+
+| Field | Source |
 |---|---|
-| client | `getClient()` |
-| database name | `env.mongodbDb` |
-| checkpoint collection | `CHECKPOINTS` (`"checkpoints"`) |
-| writes collection | `CHECKPOINT_WRITES` (`"checkpoint_writes"`) |
+| `path` | `hit.title` (the failed action / what-changed line) |
+| `why` | `hit.spoken` or `hit.text`, capped so the array stays readable |
+| `sourceDisplayId` | `hit.displayId` if present, otherwise `"unknown"` |
+| `costMinutes` | `hit.meta.costMinutes` if it is a number, otherwise `null` |
 
-Confirm the exact option names against `@langchain/langgraph-checkpoint-mongodb` 1.4.0's types before writing them. Cache the saver on `globalThis` for the same reason `db/client.ts` caches the client: Next.js hot reload re-evaluates modules and a module-level `let` accumulates savers until Atlas refuses connections, around the fifth edit, with an error message that does not mention hot reload.
-
-**`thread_id` is the `incidentId`.** One thread per call:
+`steps` are **logistics and documentation only**. They may include "confirm receiving facility status", "read back the stated dose", "record the airway decision", "ask for the rationale before writing". They may never include a treatment, a dose, or a diagnosis. After the LLM (or template) returns steps, **filter in code**, not only in the prompt:
 
 ```ts
-export const threadConfig = (incidentId: string) => ({ configurable: { thread_id: incidentId } });
+const DOSE = /\d+\s*(mg|mcg|mL|g)\b/i;
+steps = steps.filter((s) => !DOSE.test(s.action) && !DOSE.test(s.why));
 ```
 
-That single decision is what makes resume-after-crash a one-liner: there is nothing to look up, the call's identity *is* the thread's identity.
+That regex is the same one PHASE-06 uses on narratives. A step that survives the prompt but matches this pattern is dropped. If filtering removes everything, replace with a single logistics step: `{ action: "record the medic's stated actions and rationale", why: "documentation only" }`.
 
-### `src/lib/graph/trace.ts`
+#### `readbackGate`
 
-```ts
-export function withTrace(node: GraphNode, fn: NodeFn): NodeFn;
-export function withTraceAfterResume(node: GraphNode, fn: NodeFn): NodeFn;
-export type NodeFn = (state: GraphState) => Promise<Partial<GraphState>>;
-```
-
-`withTrace` emits a `node` event with `phase: "enter"`, runs the node, emits `phase: "exit"`, and merges `{ nodeTrail: [node] }` into the returned partial state. The dashboard footer highlights the active node from exactly these events.
-
-`withTraceAfterResume` is the variant for the two interrupting nodes: it emits **nothing** before calling the node function and emits only the `exit` event afterwards. The reason is the re-execution rule below. Wrap `readback_gate` and `await_input` with this one and every other node with `withTrace`.
-
-Note that `nodeTrail` is appended through the **returned partial state**, never by a side-effecting call. State updates only materialize when a node returns, so an interrupted node that never returns contributes nothing — which is exactly the behaviour you want.
-
-### The re-execution gotcha (read this before writing either interrupt node)
-
-**On resume, LangGraph re-executes the interrupted node from the top.** Everything written before the `interrupt()` call runs a second time. This costs an hour if you learn it by debugging.
-
-Three rules follow, and they are not negotiable:
-
-1. **No writes, no emits, no side effects before `interrupt()` in that node.** Put every side effect after the interrupt returns, or make it idempotent.
-2. **The dashboard's "awaiting readback" event is emitted by the caller** — `start`/`resume` in `index.ts`, from the returned interrupt payload — not from inside the node. Emitting it inside the node would fire a duplicate amber pill on every resume.
-3. **The same rule applies to `await_input`.** It is the more frequently hit of the two, since the graph parks there between every medic turn.
-
-There is a grep-based acceptance criterion: neither interrupt node file may contain the string `emit(` at all.
-
-### `src/lib/graph/nodes/`
-
-Every node has the signature `(state: GraphState) => Promise<Partial<GraphState>>`, returns only the channels it changes, and imports cross-phase functionality **only through `@/lib/registry`**.
-
-#### `triage.ts`
-
-Deterministic. **No LLM call.** Loads the incident with `PUBLIC_INCIDENT_PROJECTION`, derives `callTypeFamily`, `displayId`, and `ref` from the contract helpers, sets `status`, and appends one `system` timeline entry.
-
-The reason for no LLM here is latency: `triage` is on the critical path to the first spoken word, and a model call adds a second to the exact moment the ElevenLabs interaction-design criteria measure. Everything this node does is a lookup or a string format.
-
-Throw a message naming `--from-fixture` if the incident is not found, so a missing PHASE-04 ingest diagnoses itself.
-
-#### `signature-match.ts`
-
-Calls `(await retrieval()).signatureMatch(incident)`. Sets `signature`, concats any returned `hits` onto `retrieved`, and emits a `retrieval` event with the query and hits. `null` is a normal, expected result on call one — do not treat it as an error and do not retry with a lower threshold.
-
-#### `brief.ts`
-
-**Hard budget: under fifteen seconds of speech, roughly 40 words.** Build it deterministically from a template with no LLM call. A template you can read in the repo is a brief you can rehearse; an LLM brief is different every run and cannot be.
-
-Compose in this priority order, stopping as soon as the word budget is reached:
-
-| Order | Clause | Source |
-|---|---|---|
-| 1 | What was dispatched, in plain language | `labelFor(cad.initialCallType)` — **never a raw code** |
-| 2 | Either the signature summary with its `displayId`, or "new signature, no prior history" | `state.signature` |
-| 3 | The single highest-value failure | top hit from `failureMemory` |
-| 4 | The reclassification prior line, optional | `reclassPrior(initialCallType, dispatchArea)` |
-
-Clause 4 drops first when the budget is tight, which is correct — it is the least actionable of the four.
-
-Do not let this node grow. A brief that runs thirty seconds is one the medic talks over, and the entire design premise is that it is short enough to listen to while driving. Assert the word count in the node and log a warning above 45 words.
-
-#### `plan.ts`
-
-The failure-exclusion node. Produces `PlanResult` per `contracts.md` §6.
-
-`excludedPaths` is the point of the entire project. Each entry is a course of action the agent is **not** taking because memory says it went badly before, carrying the incident it learned that from and what it cost:
+The human-in-the-loop gate. **No emit, no write, no retrieval, no LLM before `interrupt()`.**
 
 ```ts
-{ path: string; why: string; sourceDisplayId: string; costMinutes: number | null }
-```
-
-Build it from two inputs, merged:
-
-1. `(await retrieval()).failureMemory(query, family)` over the seeded corpus. `path` from the hit's `title`, `why` from its `spoken`, `sourceDisplayId` from `displayId`, `costMinutes` from `meta.costMinutes`.
-2. A direct `find({ incidentId, outcome: "failure" })` on `remediations` **for this call**. This is what makes the demo's "second approach works" beat emerge from data instead of being hardcoded: something failed earlier in this same call, `verify` recorded it, and the next `plan` pass declines it by name.
-
-**`excludedPaths` must be non-empty on demo call two.** Log a warning whenever it is empty so the problem surfaces during rehearsal rather than on stage.
-
-The scope guardrail is enforced here (Critical Rule 3). `steps` are **logistics and documentation actions only** — routing, receiving-facility selection, notification, what to record, what to re-check. **Never treatments, drugs, or doses.** Two layers:
-
-- The prompt says so explicitly, in those words.
-- The node filters the model's output, dropping any step whose `action` or `why` matches `/\d+\s*(mg|mcg|mL|g)\b/i`, and logs each dropped step.
-
-The filter is not paranoia. This is precisely where an LLM tries to be helpful and drifts over the line, and a judge who hears the agent suggest a dose has already stopped listening to the rest of the pitch. If you want a second belt, add a short deny-list of administration verbs; the dose regex is the required one.
-
-This is the only node that calls `LlmPort`. Use `llm.json()` with a schema matching `PlanResult` so the output is structured rather than parsed out of prose.
-
-#### `readback-gate.ts`
-
-```ts
-export async function readbackGate(state: GraphState): Promise<Partial<GraphState>> {
-  if (!state.pendingReadback) return {};                       // pass through unchanged
-  const confirmation = interrupt({
+export async function readbackGate(state: IncidentState): Promise<Partial<IncidentState>> {
+  const pending: PendingReadback = state.pendingReadback ?? derivePending(state);
+  const payload: InterruptPayload = {
     type: "readback",
     incidentId: state.incidentId,
-    ...state.pendingReadback,
-  }) as ReadbackConfirmation;
-  return { lastConfirmation: confirmation, pendingReadback: null };
+    ...pending,
+  };
+  const confirmation = interrupt(payload) as ReadbackConfirmation;
+  // resume continues here — now it is legal to emit
+  return {
+    lastConfirmation: confirmation,
+    pendingReadback: null,
+  };
 }
 ```
 
-The payload is the `readback` arm of `InterruptPayload` from `contracts.md` §7. Nothing executes before `interrupt()` except the pass-through check, which is a pure read. Confirm whether `interrupt` takes generic parameters in 1.4.9 and prefer them over the cast if it does.
+`derivePending` reads the latest medic timeline entry and copies drug/dose/route if they are already in `state.pendingReadback`. If nothing is pending, still interrupt with a documentation readback of that utterance so `graph:local` and the drill always have a gate to park at. Do not call an LLM to compose the readback text — PHASE-11's `propose_readback` is deterministic string formatting, and this node should use `state.pendingReadback.readbackText` when present.
 
-#### `await-input.ts`
+On resume, emit `{ kind: "readback", payload: { state: confirmation.confirmed ? "confirmed" : "rejected", readbackText: pending.readbackText } }`.
 
-A second `interrupt()` that parks the graph between medic turns, with the `await_input` arm of `InterruptPayload`. Validate the resume value with `ResumeInput` and translate it into `{ timeline: [...], closeRequested, pendingReadback }`.
+#### `executeRecord` / `verify`
 
-Two consequences, both good, and worth saying out loud in the pitch:
+Simulate execution (real execution is on the cut list). Append a timeline entry `source: "system"` describing that the stated action was recorded, not performed by the agent. `verify` checks `lastConfirmation.verbatimOk === true`; if not, append a system note and still continue — the medic owns the clinical call. No LLM.
 
-- The graph becomes a persistent, resumable conversation driver rather than a one-shot pipeline, which is exactly the "persistent context" theme of the hackathon.
-- **Every park is a checkpoint in Atlas**, so the kill-and-resume works at any point in the call, not only during a readback. That turns the stage moment from a single scripted beat into a property of the system.
+#### `recordDecisionNode`
 
-It also fits Next.js route handlers perfectly: every invocation is short and all durable state lives in Atlas, so nothing depends on a long-lived process.
+Append `state.pendingReadback?.utterance ??` the latest medic line onto `decisionsRecorded`. Emit a `decision` event with `rationaleRecorded` true when that text looks like it contains a reason (a `because` / `family reports` / `so that` heuristic is enough). **Do not insert into the `decisions` collection.** PHASE-09 owns `recordDecision`. Duplicating that write here would double-insert on a resume and violate disjoint ownership.
 
-#### `execute-record.ts`
+#### `awaitInput`
 
-Simulates execution. Real execution is cut-list item #1 and taking that cut is correct — no judge will check whether an ambulance was actually rerouted, and building real execution buys nothing the demo shows.
-
-Records the action, a simulated `durationSeconds`, and writes a `remediations` document with a **real** outcome: `failure` when the chosen step matches a path that `failureMemory` already flagged (the agent had to take it anyway), `success` otherwise. Derive `durationSeconds` deterministically from the action string so rehearsals are identical.
-
-**Set `costMinutes: null` on these live remediations.** `costMinutes` is derived from real timing against a family median; a simulated action has no such number, and inventing one here is exactly the thing PHASE-06 goes out of its way to avoid.
-
-Write with a deterministic `_id` of `` `${incidentId}:execute_record:${passIndex}` `` and use `replaceOne` with `upsert: true`. If the process dies after the write but before the checkpoint lands, the node re-runs on resume and upserts over itself instead of inserting a duplicate. This is what makes the "no duplicate side effects" acceptance criterion hold.
-
-#### `verify.ts`
-
-Reads back the remediation just written and checks its outcome. When it was a failure, clear `plan` so the graph takes another `plan` pass; `plan` will find the fresh failure through its direct `remediations` query and exclude it by name. The demo's "second approach works" beat then happens naturally, from data, rather than being scripted.
-
-#### `record-decision.ts`
-
-Appends to `decisionsRecorded` and emits the `decision` event (`decisionId`, `actionChosen`, `rationaleRecorded`, `protocolConflict`).
-
-**It does not write to the `decisions` collection.** The durable write belongs to PHASE-09's `recordDecision`, invoked from PHASE-11's `record_decision` tool route where the utterance actually arrives and the rationale has been separated out. The ownership table permits importing only from PHASE-01, and there is no `MemoryPort` in the registry, so PHASE-08 has no legal way to call PHASE-09 today. Do not import across the boundary to make it work. If the graph should own that write, add a `MemoryPort` to `contracts.md` §9 and a resolver to the registry first, log it in `agents.md`, and only then wire it up.
-
-#### `postmortem.ts`
-
-Sets `status: "closed"`, emits its node events, and ends. Generation and the `postmortems` write belong to PHASE-09's `generateAndWrite`, called from `POST /api/tools/close_call`, for the same ownership reason as above.
-
-### `src/lib/graph/build.ts`
+Same interrupt rule as the readback gate: nothing before `interrupt()`.
 
 ```ts
-export function buildGraph(): CompiledGraph;   // exact compiled type from the installed package
+const value = interrupt({
+  type: "await_input",
+  incidentId: state.incidentId,
+  status: state.status,
+} satisfies InterruptPayload);
 ```
 
-Wire the shape from `overview.md`:
+On resume, if `value` is `{ closeRequested: true }` or state already has `closeRequested`, set `closeRequested: true`. If `value` is a string or `{ text: string }`, append a medic timeline entry.
+
+#### `postmortemNode`
+
+Do not call PHASE-09's generator. Append `"postmortem"` to `nodeTrail`, emit a `pcr` event with `preview` taken from a short `llm().text` (or a template) capped at 40 words, and finish. The durable `PostmortemDoc` write is PHASE-09, invoked by PHASE-11 `close_call`. `graph:local --auto-confirm` still "completes a full call including postmortem" because this node runs and `nodeTrail` contains `"postmortem"`.
+
+### `src/lib/graph/compile.ts`
+
+```ts
+export async function getCompiledGraph(): Promise<CompiledStateGraph /* use the 1.4.9 compiled type */>;
+```
+
+Wire in `GRAPH_NODE_ORDER` order:
 
 ```
 START → triage → signature_match → brief → plan → readback_gate
-      → execute_record → verify → record_decision → (conditional)
+      → execute_record → verify → record_decision
+      → (closeRequested ? postmortem : await_input)
+await_input → (closeRequested ? postmortem : plan)
+postmortem → END
 ```
 
-The conditional edge out of `record_decision`: when `closeRequested` is true go to `postmortem` and then `END`; otherwise go to `await_input`, and from `await_input` back to `plan`.
+The conditional edges after `record_decision` and `await_input` are how a multi-turn call loops without restarting triage. Confirm `addConditionalEdges` against installed types; the predicate reads `state.closeRequested`.
 
-Compile with `{ checkpointer: getCheckpointer() }`. Cache the compiled graph in a module-level singleton — compiling per request is wasted milliseconds on the latency-judged path.
+Cache the compiled graph next to the saver. Compiling on every `start()` is wasted work and can race `setup()`.
 
 ### `src/lib/graph/index.ts`
 
 ```ts
-async function start(incidentId: string): Promise<{ interrupt: InterruptPayload | null }>;
-async function resume(incidentId: string, value: unknown): Promise<{ interrupt: InterruptPayload | null }>;
-async function state(incidentId: string): Promise<{ values: Partial<IncidentState>; next: string[]; checkpointCount: number }>;
+export async function start(incidentId: string): Promise<{ interrupt: InterruptPayload | null }>;
+export async function resume(incidentId: string, value: unknown): Promise<{ interrupt: InterruptPayload | null }>;
+export async function state(incidentId: string): Promise<{
+  values: Partial<IncidentState>;
+  next: string[];
+  checkpointCount: number;
+}>;
 ```
 
-- `start` invokes the compiled graph with `threadConfig(incidentId)` and an initial state built from the incident document, then extracts any pending interrupt from the invoke result. Confirm the exact property carrying it against the installed types; do not guess a name.
-- `resume` invokes with a `Command` carrying the resume value.
-- `state` reads `getState(threadConfig(incidentId))` for `values` and `next`, and counts checkpoints with `col(CHECKPOINTS).countDocuments({ thread_id: incidentId })`. Confirm the stored field name by printing one checkpoint document after the first run rather than assuming it — `run-graph-local.ts` should print it once for exactly this reason.
-- **`start` and `resume` emit the `readback` event** with state `awaiting` when they return a `readback` interrupt, and `confirmed`/`rejected` when a resume carries a confirmation. This is the caller-side emit required by the re-execution rule.
-- They also emit a `checkpoint` event carrying the current count, which is what the dashboard's checkpoint counter reads. Point at that counter immediately before killing the process.
+`start` loads the incident with `PUBLIC_INCIDENT_PROJECTION` (`{ _groundTruth: 0 }`). If Atlas has no row, fall back to `fixtures/incidents.json` so `graph:local` works before PHASE-04. Invoke the compiled graph with the initial `IncidentState` and `threadConfig(incidentId)`. Return `{ interrupt: interruptPayloadFromInvokeResult(result) }`.
+
+`resume` invokes with `new Command({ resume: value })` and the **same** `threadConfig(incidentId)`. That `Command` constructor is the documented 1.4 resume input; confirm it against types. Do not pass a plain object and hope.
+
+`state` calls `compiled.getState(threadConfig(incidentId))`. Map `snapshot.values` and `snapshot.next`. `checkpointCount` is `col(CHECKPOINTS).countDocuments({ thread_id: incidentId })` (the saver stores `thread_id` as a field — confirm on the first write; if the field is nested, count what is actually there and log it). While interrupted, `next` must include the pending node (`readback_gate` or `await_input`).
 
 ### `scripts/run-graph-local.ts`
 
-Drives a full call from the CLI with no voice layer, so the graph is debuggable without ElevenLabs anywhere in the loop. **Build this before touching voice.** A text-mode rehearsal of the stage moment is worth more than a prettier voice, and it is the only way to iterate on the graph in seconds rather than minutes.
+Thin CLI over `GraphPort`. Already wired as `npm run graph:local`.
 
 | Flag | Effect |
 |---|---|
-| `--incident-id=<id>` | Which call to run; required unless `--from-fixture` |
-| `--from-fixture` | Upsert one incident from `fixtures/incidents.json` with a `local-` prefixed id and `isLive: true`, so local drills never collide with demo data |
-| `--auto-confirm` | Automatically resume every readback with `{ confirmed: true, verbatimOk: true }` |
-| `--stop-before-resume` | Run to the first interrupt, print the payload, and exit 0 without resuming |
+| `--incident-id=<id>` | Use this id; default to the first `UNC` fixture |
+| `--auto-confirm` | On a `readback` interrupt, resume with `{ confirmed: true, verbatimOk: true }`; on `await_input`, resume with `{ closeRequested: true }` so the run reaches `postmortem` |
+| `--print-state` | Dump `values.nodeTrail`, `values.brief`, `values.plan`, `next`, `checkpointCount` after each invoke |
 
-Print, in order: the node trail as it advances, the brief with its word count, the plan `steps`, every `excludedPath` with its `sourceDisplayId` and `costMinutes`, the interrupt payload, and the checkpoint count. On the first run also print one raw checkpoint document so the `thread_id` field name is confirmed rather than assumed.
+Print the interrupt payload, then the brief, then `plan.excludedPaths`. Exit non-zero if `--auto-confirm` finishes without `"postmortem"` in `nodeTrail`, or if `brief` contains a raw dispatch code.
 
 ### `scripts/kill-resume-drill.ts`
 
-Automates the stage moment. Sequence:
+This is the stage moment, automated. Already wired as `npm run drill`.
 
-1. Run an **uninterrupted baseline** on a throwaway incident id and record the final `decisionsRecorded` length and the `remediations` count for that incident.
-2. Spawn a child process running `run-graph-local.ts --stop-before-resume` on the drill incident and wait until it reports the interrupt.
-3. **`SIGKILL` the child.** Not a graceful shutdown — the point is that nothing gets a chance to flush.
-4. Start a **fresh** process and resume the same `incidentId`.
-5. Assert: the run continues from the gate; `timeline` and `signature` are intact; `nodeTrail` continues rather than restarting; and the final `decisionsRecorded` length and `remediations` count match the baseline exactly.
+1. `start(incidentId)` and wait until the returned interrupt is `type: "readback"` (or `state().next` includes `readback_gate`).
+2. Snapshot `state().values.timeline`, `state().values.signature`, and counts of `decisions` and `remediations`.
+3. Spawn a **child process** (`tsx scripts/kill-resume-drill.ts --resume-only --incident-id ...` or an equivalent worker flag) so the resume runs in a fresh Node isolate with a new compiled graph and a new saver constructed from `getClient()`. The parent may `process.exit` the child after the interrupt, or the script can be two invocations; the point is that resume does not share the in-memory compiled graph from the first invoke.
+4. In the fresh process, `resume(incidentId, { confirmed: true, verbatimOk: true })`.
+5. Assert timeline length is at least the snapshot length, `signature` is still present (or still null — whichever it was), and `decisions` / `remediations` counts are **identical** to the snapshot. That last assertion is how you prove no duplicated side effects.
+6. Print `PASS` and exit 0, or `FAIL` with the mismatch and exit 1.
 
-Print a pass/fail line per assertion and exit non-zero on any failure. Rehearse it three times before the pitch, per `overview.md`.
+`--incident-id` selects the thread. `--stop-before-resume` parks after the interrupt so PHASE-16 can target an existing incident. Do not construct a `MemorySaver` to "make the unit test faster."
 
 ## Acceptance Criteria
 
 - [ ] `npm run typecheck` passes with zero errors
 - [ ] `src/lib/graph/index.ts` default-exports an object satisfying `GraphPort`, verified by a type-level annotation, and `GRAPH_MODE=real` resolves to it through the registry with no `FAKE PORT` warning
-- [ ] `GraphState` satisfies the contract's `IncidentState` — enforced by the compile-time guard in `state.ts`, not by inspection
-- [ ] **No `MemorySaver` anywhere:** `rg -n "MemorySaver" src worker app scripts` returns nothing
-- [ ] The compiled graph is constructed with `MongoDBSaver` using the shared client from `@/lib/db/client`, and no second `MongoClient` is constructed in `src/lib/graph/`
-- [ ] **Parallel-safe criterion:** with `RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake`, `npm run graph:local -- --from-fixture --auto-confirm` completes a full call, printing a `nodeTrail` that visits all eight non-interrupt nodes, with no other phase's code present
-- [ ] `timeline`, `nodeTrail`, `retrieved`, and `decisionsRecorded` accumulate across nodes; every other channel is last-write-wins — verified by inspecting the final state after a multi-pass run
-- [ ] After a run, `col("checkpoints").countDocuments({ thread_id: incidentId })` is greater than zero and increases across successive parks
-- [ ] `triage` issues no LLM call: the node completes with `LLM_MODE=real` and no `OPENAI_API_KEY` set
-- [ ] The `brief` string is 40 words or fewer on both the signature-found and signature-`null` branches, and never contains a raw call type code
-- [ ] With the retrieval fake returning `null` from `signatureMatch`, the brief contains the phrase "new signature, no prior history"
-- [ ] `plan.excludedPaths` is non-empty when `failureMemory` returns hits, each entry carrying a `sourceDisplayId`, and a warning is logged when it is empty
-- [ ] `plan` drops every step matching `/\d+\s*(mg|mcg|mL|g)\b/i` — verified by feeding a fake LLM response containing "administer 1 mg epinephrine" and asserting it is absent from `steps` and that the drop was logged
-- [ ] **No side effects before either `interrupt()`:** `rg -n "emit\(" src/lib/graph/nodes/readback-gate.ts src/lib/graph/nodes/await-input.ts` returns nothing
-- [ ] `readback_gate` passes through unchanged, returning no interrupt, when `pendingReadback` is `null`
-- [ ] `readback_gate` returns `{ lastConfirmation, pendingReadback: null }` after resume
-- [ ] `await_input` throws a message naming the expected shape when handed a resume value that fails `ResumeInput` parsing
-- [ ] **Kill-and-resume:** `npm run drill` passes — the process is `SIGKILL`ed while interrupted, a fresh process resumes the same `incidentId`, and the run continues from the gate with `timeline` and `signature` intact
-- [ ] **No duplicate side effects after resume:** the final `decisionsRecorded` length and the `remediations` document count for the drill incident are identical to the uninterrupted baseline
-- [ ] `execute_record` writes `costMinutes: null` on every live remediation
-- [ ] Every node emits a `node` event on enter and exit except the two interrupt nodes, which emit only on exit
-- [ ] `npm run graph:local -- --stop-before-resume` exits 0 and prints an `InterruptPayload` whose `type` is `"readback"` or `"await_input"`
+- [ ] Export names `interrupt`, `Command`, `StateGraph`, and the state helper actually used were confirmed against installed `@langchain/langgraph` 1.4.9 types (logged in `agents.md` if they differ from this spec)
+- [ ] The graph compiles with `MongoDBSaver` using `getClient()`, `checkpointCollectionName: CHECKPOINTS`, and `checkpointWritesCollectionName: CHECKPOINT_WRITES`, and `setup()` is called before the first invoke
+- [ ] `rg MemorySaver` across the repository returns zero occurrences
+- [ ] Every `invoke` / `getState` uses `{ configurable: { thread_id: incidentId } }`
+- [ ] `timeline`, `nodeTrail`, `retrieved`, and `decisionsRecorded` use concat reducers; other fields are last-write-wins
+- [ ] A full `--auto-confirm` call produces a `nodeTrail` containing every name in `GRAPH_NODE_ORDER`
+- [ ] After one run, `checkpoints` and `checkpoint_writes` are non-empty for that `thread_id`
+- [ ] Every node other than `readback_gate` and `await_input` emits a `node` event on enter and on exit; those two emit nothing before `interrupt()` returns
+- [ ] `triage` performs no LLM call (verified by running with `LLM_MODE=real` and no `OPENAI_API_KEY` through triage only, or by inspection that `triage` never awaits `llm()`)
+- [ ] `brief` is 55 words or fewer, contains `new signature, no prior history` when signature is null, and contains no raw dispatch code (`UNC`, `EDP`, `SICK`, `ARREST`, `CARD` as whole words)
+- [ ] **Parallel-safe criterion:** with `RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake`, `plan.excludedPaths` is non-empty for a SICK-to-cardiac fixture incident whose failure-memory query overlaps `fixtures/hits.json`
+- [ ] Every `excludedPath` has a `why`, a `sourceDisplayId`, and `costMinutes` as a number or `null`
+- [ ] `plan` logs a warning containing `excludedPaths empty` when the mapped list is empty, and does not throw
+- [ ] No `plan.steps` entry matches `/\d+\s*(mg|mcg|mL|g)\b/i` after the code filter, even if the LLM (or fake LLM) emitted one
+- [ ] Plan exclusion does not require more than `SEED_TARGET` (40) seeded documents — no score floor, no minimum corpus size, no LLM-narrative requirement
+- [ ] A run reaches `readback_gate` and `start()` / the first invoke returns an interrupt payload with `type: "readback"`
+- [ ] While interrupted, `state(incidentId).next` includes `readback_gate` (or `await_input` at that gate)
+- [ ] Killing the process while interrupted, starting a fresh process, and `resume` with `Command` continues from the gate with `timeline` and `signature` intact
+- [ ] Decision and remediation collection counts after a kill-and-resume run equal the counts from an uninterrupted run
+- [ ] `npm run drill` exits 0 on success
+- [ ] `npm run graph:local -- --auto-confirm` completes a full call whose `nodeTrail` includes `postmortem`
+- [ ] No file in `src/lib/graph/` references `_groundTruth`: `rg -n "_groundTruth" src/lib/graph` returns nothing
+- [ ] No file in this phase's ownership imports `@/lib/memory/` or `@/lib/retrieval/` (retrieval goes through `registry`)
 
 ## Verification
 
-PowerShell users: set env vars with `$env:RETRIEVAL_MODE='fake'` on preceding lines rather than the inline prefix shown here.
+PowerShell users: set env vars with `$env:GRAPH_MODE='real'` on a preceding line rather than the inline prefix shown here.
 
 ```bash
 npm run typecheck
 
-# Highest-consequence rule in the build.
-rg -n "MemorySaver" src worker app scripts && echo "FAIL: in-memory saver present" || echo "ok"
-
-# No side effects before either interrupt.
-rg -n "emit\(" src/lib/graph/nodes/readback-gate.ts src/lib/graph/nodes/await-input.ts \
-  && echo "FAIL: emit before interrupt" || echo "ok"
-
-# Full parallel-safe run. Real Atlas for the checkpointer, fakes for everything else.
-RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake EMBEDDINGS_MODE=fake \
-  npm run graph:local -- --from-fixture --auto-confirm
-
-# Park at the gate and inspect durable state.
-RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake \
-  npm run graph:local -- --from-fixture --stop-before-resume
-
+# Confirm exports against installed types before relying on this spec's names.
 npx tsx -e "
-import g from './src/lib/graph/index';
-import { col } from './src/lib/db/client';
-import { CHECKPOINTS } from './src/lib/contracts';
-const id = process.env.DRILL_ID;
-const s = await g.state(id);
-console.log('next', s.next, 'checkpoints', s.checkpointCount);
-console.log('timeline entries', s.values.timeline?.length);
-console.log('signature', s.values.signature ? s.values.signature.displayId : 'null');
-console.log('nodeTrail', s.values.nodeTrail?.join(' -> '));
-console.log('sample checkpoint doc keys', Object.keys((await col(CHECKPOINTS).findOne({})) ?? {}));
-process.exit(0);
+import * as lg from '@langchain/langgraph';
+for (const k of ['interrupt','Command','StateGraph','Annotation','START','END','isInterrupted','MemorySaver'])
+  console.log(k, typeof (lg as any)[k]);
 "
 
-# The stage moment, automated. Run this three times.
-npm run drill
-npm run drill
-npm run drill
+# Port resolves; no FAKE PORT.
+GRAPH_MODE=real RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake \
+  npx tsx -e "
+import { graph } from './src/lib/registry';
+const g = await graph();
+console.log(['start','resume','state'].every(k => typeof (g as any)[k] === 'function'));
+"
 
-# Dose filter, using a fake LLM response that tries to prescribe.
-LLM_MODE=fake npx tsx -e "
-import { plan } from './src/lib/graph/nodes/plan';
-const out = await plan({ /* minimal state */ } as never);
-const bad = out.plan?.steps.filter(s => /\d+\s*(mg|mcg|mL|g)\b/i.test(s.action + ' ' + s.why)) ?? [];
-console.log('dose-bearing steps that survived the filter:', bad.length);
-process.exit(bad.length ? 1 : 0);
+# MemorySaver must not exist in this phase or anywhere else.
+rg MemorySaver --glob '!node_modules/**' --glob '!.ralph/**'
+
+# Full local run with all other ports faked.
+GRAPH_MODE=real RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake \
+  npx tsx scripts/run-graph-local.ts --auto-confirm --print-state
+
+# Kill-and-resume in a fresh process.
+GRAPH_MODE=real RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake \
+  npm run drill
+
+# Plan filter and empty-corpus warning are unit-checkable without a live call.
+npx tsx -e "
+import { plan } from './src/lib/graph/nodes';
 "
 ```
 
+After `--auto-confirm`, manually confirm: `brief` word count ≤ 55, `plan.excludedPaths.length >= 1` on the cardiac fixture, `nodeTrail` includes every `GRAPH_NODE_ORDER` name, and `col('checkpoints').countDocuments({ thread_id }) > 0`.
+
 ## Handoff Note
 
-Announce two things when this passes: that `GRAPH_MODE=real` resolves cleanly, and that `npm run drill` is green. PHASE-11's tool routes are written against `GraphPort` and PHASE-15 rehearses the kill-and-resume, so both are waiting on exactly those two signals.
-
-Also announce the contract gap you hit: PHASE-08 cannot call PHASE-09's writers without a `MemoryPort` in the registry. Whoever wires `close_call` and `record_decision` needs to know that decision was already made here.
+Announce that `@/lib/graph` default-exports a working `GraphPort` on `MongoDBSaver`, that `npm run drill` exits 0, and the confirmed 1.4.9 export names. PHASE-11's `confirm_readback` and PHASE-16's smoke both resume this interrupt; PHASE-16 must not reimplement the drill.

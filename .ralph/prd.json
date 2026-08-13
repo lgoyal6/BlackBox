@@ -111,8 +111,8 @@
       "parallel": true,
       "dependsOn": ["PHASE-01"],
       "budgetMinutes": 40,
-      "owns": ["src/lib/memory/decisions.ts", "src/lib/memory/postmortem.ts", "src/lib/memory/epcr.ts"],
-      "implementsPort": null
+      "owns": ["src/lib/memory/index.ts", "src/lib/memory/decisions.ts", "src/lib/memory/postmortem.ts", "src/lib/memory/epcr.ts"],
+      "implementsPort": "MemoryPort"
     },
     {
       "id": "PHASE-10",
@@ -229,7 +229,7 @@
       "phase": "PHASE-01",
       "title": "Deterministic fakes for all six ports plus fixtures",
       "acceptanceCriteria": [
-        "All six fakes satisfy their port interfaces, verified by a type-level assignment",
+        "All seven fakes satisfy their port interfaces, verified by a type-level assignment",
         "fakes/embeddings.embedOne returns env.embeddingDim floats and two calls on the same text return identical arrays",
         "Two different strings produce vectors with cosine similarity below 0.5",
         "fakes/retrieval.signatureMatch returns null for a query containing `transfer` and a populated match otherwise",
@@ -603,6 +603,7 @@
         "Extraction on all 8 records in fixtures/utterances.json produces the expected action and rationale split",
         "The extractor never invents a rationale, verified against the fixture cases that deliberately omit one",
         "GET /api/voice/signed-url returns url and agentId and the ElevenLabs API key never appears in any client bundle",
+        "GET /api/voice/conversation-token returns token and agentId; the operator console uses this token, not the signed URL",
         "npm run typecheck passes"
       ],
       "passes": false

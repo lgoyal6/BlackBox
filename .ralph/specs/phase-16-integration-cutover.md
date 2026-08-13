@@ -36,7 +36,7 @@ Do not edit `.env.example` (PHASE-01) or `package.json` — `"integrate"` and `"
 
 ### Ports consumed
 
-All six, in `real` mode. That is the point.
+All seven, in `real` mode. That is the point.
 
 ```
 EMBEDDINGS_MODE=real

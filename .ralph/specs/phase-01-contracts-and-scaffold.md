@@ -176,7 +176,7 @@ Step 7 matters more than it looks: at hour seven somebody will demo something th
 - [ ] `npm run dev` serves a page without runtime error
 - [ ] Every type, constant, and interface in `contracts.md` §2–§10 exists and is exported from `@/lib/contracts` or `@/lib/ports`
 - [ ] `package.json` contains every script from `contracts.md` §12
-- [ ] All six fakes satisfy their port interfaces — verified by a type-level assignment, not by hope
+- [ ] All seven fakes satisfy their port interfaces — verified by a type-level assignment, not by hope
 - [ ] `fakes/embeddings.embedOne("x")` returns `env.embeddingDim` floats, and two calls give identical arrays
 - [ ] Two different strings produce vectors with cosine similarity below 0.5
 - [ ] Registry with `*_MODE=fake` returns the fakes; with `real` and the module absent, it falls back to the fake and logs a warning containing `FAKE PORT`

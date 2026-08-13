@@ -8,159 +8,189 @@
 
 ## Objective
 
-Implement every HTTP surface the voice agent, the operator, and the dashboard call: the seven `/api/tools/*` handlers the ElevenLabs agent invokes mid-call, the three `/api/demo/*` orchestration routes, and the two read routes (`/api/state/[incidentId]`, `/api/counters`) that bootstrap the dashboard.
+Ship the HTTP surface that ElevenLabs server tools and the operator console call: seven voice tool routes with shared-secret auth and the contracted latency budgets, plus the demo fire/close/reset controls, a graph state reader, and live collection counters. When this phase is done, a `curl` with `X-BlackBox-Secret` can drive a full call through the fake graph with no voice session and no other phase's modules imported.
 
-**All route contracts, request/response shapes, and latency budgets are already specified in `contracts.md` §10. Implement them exactly; do not redesign them.** This spec adds the security, latency, and deletion-safety requirements that the table cannot express.
+## Why These Routes Are The Seam
+
+The agent's tools are **server tools hitting our own Next.js route handlers**. Browser WebRTC and an optional Twilio outbound call run identical logic because both land here. That is why this phase owns the routes and not the voice SDK, and why every handler must be short, authenticated, and honest about what it can do with other ports faked.
+
+Two latency rules from `contracts.md` §10 are judged criteria, not style preferences:
+
+1. `propose_readback` is **deterministic string formatting**. The agent must speak the dose on this turn. An LLM can paraphrase "1 milligram" into "one mg", which is a clinical error and a failed demo beat.
+2. `record_decision` **acknowledges immediately** and does extraction plus the embedded write in the background. The medic cannot wait on an embedding round trip before the next sentence.
 
 ## Reference Files (read before implementing)
 
-- `.ralph/contracts.md` §10 — **the authority for every route in this phase.** Request shape, response shape, and latency budget per tool. Copy them literally.
-- `.ralph/contracts.md` §1 and §13 — import rules (`@/lib/contracts`, `@/lib/ports`, `@/lib/registry`, `@/lib/db/client`, own files only), Zod v4 for every body, `z.output<typeof Schema>` as the handler parameter type.
-- `.ralph/contracts.md` §5 — `IncidentDoc`, `DecisionDoc`, `PostmortemDoc`, and `PUBLIC_INCIDENT_PROJECTION`. Every agent-facing incident read must use that projection.
-- `.ralph/contracts.md` §6 — `Hit`, `SPOKEN_WORD_CAP`. The `spoken` field is what the agent reads aloud.
-- `.ralph/contracts.md` §8 — the events this phase emits: `status`, `voice`, `decision`, `readback`, `retrieval`, `pcr`, `checkpoint`.
-- `.ralph/contracts.md` §9 — the ports this phase consumes and how the registry resolves them.
-- `.ralph/overview.md` — Critical Rules 3, 4, 5, 6, 8; the file ownership table; the Cut List.
-- `src/lib/contracts/api.ts` (PHASE-01) — the Zod schemas and request/response types already exist here. **Use the exported names PHASE-01 produced; never declare a second copy of a route type in this phase.**
+- `.ralph/contracts.md` §10 — every route, request, response, status code, and latency budget. Implement these literally. Do not invent a route, a field, or a status code.
+- `.ralph/contracts.md` §9 — `RetrievalPort`, `GraphPort`, `EventsPort`, `LlmPort`, `EmbeddingsPort`. Resolve them through `@/lib/registry`. Never import `@/lib/retrieval`, `@/lib/graph`, `@/lib/events`, `@/lib/memory/*`, or `@/lib/voice/*`.
+- `.ralph/contracts.md` §5 — `IncidentDoc`, `PUBLIC_INCIDENT_PROJECTION`, `DecisionDoc`. Agent-facing incident reads must use the projection.
+- `.ralph/contracts.md` §6 — `Hit`, `SPOKEN_WORD_CAP` (40). Every snippet returned to the voice agent is capped.
+- `.ralph/contracts.md` §7 — `PendingReadback`, `ReadbackConfirmation`, `InterruptPayload`. `confirm_readback` resumes with a `ReadbackConfirmation`.
+- `.ralph/contracts.md` §13 — Zod v4 (`z.output<typeof Schema>`), `{ error: string }` errors, `runtime = "nodejs"`, Dates are `Date`.
+- `.ralph/contracts.md` §14 — demo corpus floors. Reset must leave them untouched.
+- `.ralph/overview.md` — Critical Rules 3, 4, 5, 6, 9; Next.js 16 async `params`; file ownership table.
+- `src/lib/contracts/api.ts` (PHASE-01) — the Zod schemas this phase validates against. Do not redefine them.
+- `fixtures/incidents.json` — offline source for `POST /api/demo/fire` when Atlas has no historical rows yet.
+- `fixtures/utterances.json` — eight medic utterances. Use them to prove `propose_readback` is verbatim and `record_decision` acks before the write lands.
 
 ## Parallel-Safe Contract
 
 ### Files this phase owns
 
-From the ownership table in `overview.md`, PHASE-11 owns exactly:
+| Path | Purpose |
+|---|---|
+| `app/api/tools/[tool]/route.ts` | Single dispatcher for the seven tools |
+| `app/api/tools/_lib/auth.ts` | Shared-secret check |
+| `app/api/tools/_lib/readback.ts` | Deterministic `composeReadback` used by the tool route |
+| `app/api/tools/_lib/handlers.ts` | One function per tool |
+| `app/api/tools/_lib/decision-write.ts` | Background extract + embed + insert for `record_decision` |
+| `app/api/demo/fire/route.ts` | Clone a historical incident into a live one |
+| `app/api/demo/close/route.ts` | Request close on a live incident |
+| `app/api/demo/reset/route.ts` | Narrow delete; seeded corpus must survive |
+| `app/api/demo/_lib/clone.ts` | Incident clone helper |
+| `app/api/state/[incidentId]/route.ts` | Graph state reader |
+| `app/api/counters/route.ts` | Collection counts + embedding info |
 
-- `app/api/tools/**`
-- `app/api/demo/**`
-- `app/api/state/**`
-- `app/api/counters/**`
+Create nothing outside `app/api/tools/**`, `app/api/demo/**`, `app/api/state/**`, and `app/api/counters/**`. Do not edit `package.json`. Do not create indexes. Do not add a script.
 
-Shared helpers live in `app/api/tools/_lib/`. A folder whose name starts with `_` is a **private folder** in the App Router and is excluded from routing, so helper modules there cannot accidentally become endpoints.
+`src/lib/memory/decisions.ts`, `src/lib/memory/postmortem.ts`, and `src/lib/voice/readback.ts` belong to other phases. **Do not import them.** This phase implements the thin write and the readback formatter in its own `_lib` files so it can pass with those modules absent. Duplication of a ten-line formatter is cheaper than a cross-phase import that breaks parallelism.
 
-### Ports consumed, and how to build with zero dependencies
+### Ports consumed
 
-| Port | Used by | Fake behaviour that makes this phase verifiable alone |
+| Port | Used for | Set this to build in isolation |
 |---|---|---|
-| `RetrievalPort` | `recall_memory`, `get_protocol` | Returns hits from `fixtures/hits.json` filtered by substring, with real RRF |
-| `GraphPort` | `confirm_readback`, `/api/state/[incidentId]` | Walks `GRAPH_NODE_ORDER`, raises a `readback` interrupt at `readback_gate` |
-| `EventsPort` | every write path | Appends to an in-memory array with a `__drain()` for assertions |
-| `LlmPort` | `record_decision`, `close_call` background work | Templated deterministic strings, zero network |
-| `EmbeddingsPort` | `record_decision`, `close_call` background work | `sha256` → deterministic unit vector, zero network |
+| `RetrievalPort` | `recall_memory`, `get_protocol` | `RETRIEVAL_MODE=fake` |
+| `GraphPort` | `confirm_readback`, `fire` start, `state` | `GRAPH_MODE=fake` |
+| `EventsPort` | timeline / decision / write / status emits | `EVENTS_MODE=fake` |
+| `LlmPort` | background rationale extract; `close_call` draft | `LLM_MODE=fake` |
+| `EmbeddingsPort` | background decision embed | `EMBEDDINGS_MODE=fake` |
 
-Build and verify the whole phase with:
+`VoicePort` is not consumed. Build and verify with:
 
 ```
-RETRIEVAL_MODE=fake GRAPH_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake
+GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake
 ```
 
-Every acceptance criterion below except the two marked *(needs Atlas)* passes in that configuration. Those two touch `incidents`, `decisions`, and the seeded corpus, so they need a database — but not another phase.
+The fake graph walks `GRAPH_NODE_ORDER` and raises a `readback` interrupt on the first pass, so `confirm_readback` and `GET /api/state/[incidentId]` are fully testable. The fake retrieval returns `fixtures/hits.json` filtered by substring. The fake LLM returns templated strings. None of that requires PHASE-07, PHASE-08, PHASE-09, or PHASE-13 to exist.
 
-### Port implemented
+This phase talks to Atlas through `col()` for incident clones, counters, and the background decision insert. If the cluster is empty, `fire` falls back to `fixtures/incidents.json`. That is a supported path, not a failure.
 
-**None.** This phase implements no port and therefore default-exports nothing to the registry. It is a pure consumer, which is why it can be built first among the parallel phases without blocking anyone.
+### Ports implemented
 
-### The two soft dependencies, and how to keep them from becoming a merge conflict
-
-Two handlers need logic that the ownership table assigns to other phases and that is **not** exposed as a port:
-
-| Need | Canonical owner | Path |
-|---|---|---|
-| Rationale extraction, `composeReadback` | PHASE-13 | `src/lib/voice/tools.ts` |
-| Decision writer, postmortem + ePCR generation | PHASE-09 | `src/lib/memory/decisions.ts`, `postmortem.ts`, `epcr.ts` |
-
-That is a genuine gap in the contract: the ports cover six boundaries and these two are not among them. Resolve it with the same pattern `registry.ts` already uses for a missing real module — a **soft dynamic import with a port-only fallback** — implemented once in `app/api/tools/_lib/deps.ts`, so no handler ever reaches across a phase boundary directly.
-
-Rules for `_lib/deps.ts`:
-
-- `await import("@/lib/voice/tools")` and `await import("@/lib/memory/decisions")` inside a `try`/`catch`. On failure, log once with a prefix containing `SOFT DEP MISSING` and use the fallback.
-- **The imported module's return value is `unknown` and must be validated with a local Zod schema.** You cannot `import type` a module that may not exist yet — that fails `tsc` — so declare the shape locally and check it at runtime. This is exactly the situation `contracts.md` exists to prevent, so if this survives past the hackathon the correct fix is to add the extraction type to `contracts.md` §5 and log it in `agents.md`; today the runtime check is cheaper than a contract change that fourteen agents have to re-read.
-- The three field names `actionChosen`, `rationale`, `optionsConsidered` and **the convention that `rationale` may be `null`** are load-bearing across this boundary. PHASE-13's spec states the same names for the same reason.
-- The fallback must be a genuine working implementation, not a stub: extraction via `llm().json()` with a strict schema, the decision write via `embeddings().embedOne()` plus an `insertOne` into `col(DECISIONS)`. Any handler that throws because a soft dependency is absent makes this phase un-verifiable on its own, which defeats the point.
+None. Nothing here is default-exported or resolved through the registry.
 
 ## Files to Create
 
-### `app/api/tools/_lib/guard.ts`
-
-Shared entry checks for `/api/tools/*`.
+### `app/api/tools/_lib/auth.ts`
 
 ```ts
-export type ToolName =
-  | "recall_memory" | "get_protocol" | "log_timeline" | "propose_readback"
-  | "confirm_readback" | "record_decision" | "close_call";
-
-export function isToolName(s: string): s is ToolName;
-
-export function jsonError(status: number, error: string): Response;
-
-/** 401 when the header is absent or wrong; 500 when TOOL_SHARED_SECRET is unset. */
-export function checkSecret(req: Request): { ok: true } | { ok: false; res: Response };
-
-export async function parseBody<S extends z.ZodType>(
-  req: Request, schema: S,
-): Promise<{ ok: true; data: z.output<S> } | { ok: false; res: Response }>;
-
-/** Runs fn, logs `[tool] <name> <ms>ms budget=<n>ms` and appends ` OVER BUDGET` when exceeded. */
-export async function withTiming<T>(tool: ToolName, budgetMs: number, fn: () => Promise<T>): Promise<T>;
+export function requireSecret(req: Request): Response | null;
 ```
 
-**The shared secret is mandatory on every `/api/tools/*` request.** Check `X-BlackBox-Secret` against `TOOL_SHARED_SECRET` and return `401` with `{ error: "unauthorized" }` otherwise. The tunnel URL is public for the duration of the event, and an unauthenticated write endpoint on a public URL is a bad idea even for one afternoon — `record_decision` writes to the clinical record and `close_call` generates and embeds a document.
+Compare `req.headers.get("x-blackbox-secret")` to `env.toolSharedSecret` with a length-safe equality check. Missing, empty, or wrong values return a `401` `Response` whose body is `{ error: "unauthorized" }`. Return `null` when the header matches so the caller proceeds.
 
-Compare with `timingSafeEqual` from `node:crypto` when the byte lengths match, and return `401` when they do not. It costs two lines.
+Check the secret **before** reading the body. A 401 must not depend on a valid JSON payload.
 
-**If `TOOL_SHARED_SECRET` is unset or empty, return `500` with `{ error: "TOOL_SHARED_SECRET not configured" }` — never fall through to allow.** A misconfiguration that fails open on a public tunnel is the one failure you cannot see from the outside.
-
-`withTiming`'s log line is a cross-phase interface: **PHASE-13's acceptance criteria grep the server log for `[tool] <name>` to prove the agent actually invoked tools rather than merely producing speech.** Do not remove or reformat it.
-
-### `app/api/tools/_lib/deps.ts`
-
-The soft-dependency shims described above, plus the small shared writers the handlers need.
+### `app/api/tools/_lib/readback.ts`
 
 ```ts
-export interface DecisionExtraction {
+export function composeReadback(fields: {
+  utterance: string;
+  drug?: string;
+  dose?: string;
+  route?: string;
+}): string;
+```
+
+Pure function. **No `llm()` call, no `fetch`, no randomness.** Concatenate the provided fields in a fixed template:
+
+```
+Confirming {dose} of {drug}, {route}. Say confirm or correct me.
+```
+
+Omit any clause whose field is missing. If only `utterance` is present, return `Confirming: ${utterance.trim()}. Say confirm or correct me.`
+
+**Copy the dose and units character-for-character.** `"1 milligram"` stays `"1 milligram"`. Do not convert to `mg`, do not spell out a digit that arrived as a digit, do not round. This is the aviation-style readback and the LangGraph human-in-the-loop gate. A paraphrase here is a failed acceptance criterion.
+
+This copy exists because PHASE-13 also owns a `composeReadback`. Keep the template identical so a judge cannot hear two different readbacks for the same utterance. If you change the wording, that is a contract change: stop, edit `contracts.md`, log it in `agents.md`.
+
+### `app/api/tools/_lib/decision-write.ts`
+
+```ts
+export interface ExtractedDecision {
   actionChosen: string;
-  rationale: string | null;        // null means the medic gave no reason. NEVER fabricate one.
+  rationale: string | null;
   optionsConsidered: string[];
 }
 
-export async function extractRationale(utterance: string): Promise<DecisionExtraction>;
-
-/** Deterministic. No LLM. Must byte-match PHASE-13's composeReadback. */
-export function composeReadback(f: { drug?: string; dose?: string; route?: string; utterance?: string }): string;
-
-/** Appends to incidents.timeline and bumps updatedAt. Never drops the utterance. */
-export async function appendTimeline(incidentId: string, entry: TimelineEntry): Promise<void>;
-
-/** Embeds and inserts one DecisionDoc. Throws if rationale is empty — the caller must check first. */
-export async function writeDecision(
-  incidentId: string, utterance: string, x: DecisionExtraction,
-): Promise<{ decisionId: string }>;
-
-/** Generates the narrative, embeds it, inserts a PostmortemDoc with origin: "live". */
-export async function writePostmortem(incidentId: string): Promise<{ postmortemId: string; preview: string }>;
+export async function extractDecision(utterance: string): Promise<ExtractedDecision>;
+export async function writeDecisionInBackground(input: {
+  incidentId: string;
+  utterance: string;
+}): Promise<void>;
 ```
 
-`composeReadback` produces exactly:
+`extractDecision` calls `(await llm()).json(...)` with a schema that requires `actionChosen` and allows `rationale` to be `null`. **If the model returns a rationale that is not a substring of the utterance (case-insensitive, ignoring surrounding whitespace), discard it and store `null`.** Never invent a reason. A fabricated rationale in a permanent clinical record is worse than no rationale — it is the harm this project claims to prevent.
 
-```
-Confirm: <dose> of <drug>, <route>. Say confirm.
-```
+`writeDecisionInBackground` is what `record_decision` fires *after* the response is sent:
 
-and when no drug/dose/route was supplied, exactly `Confirm: <utterance>. Say confirm.` **PHASE-13 owns a second copy of this function** (its `src/lib/voice/tools.ts` is the canonical one) and both specs pin the same assertion so the copies cannot drift:
+1. Load the incident with `PUBLIC_INCIDENT_PROJECTION`. If missing, log `DECISION WRITE FAILED` and return.
+2. Extract. If `rationale` is `null` or whitespace, **do not insert**. Log `DECISION WRITE SKIPPED: empty rationale` and emit nothing. Critical Rule 4: a decision document without a rationale is a bug, and the server-side validator will reject it anyway.
+3. Embed `utterance + actionChosen + rationale` via `(await embeddings()).embedOne(text, "document")`.
+4. Insert one `DecisionDoc` into `col(DECISIONS)` with `outcome: "pending"`, `protocolConflict: false`, `t: new Date()`, and both `embedding` and `embeddedText`.
+5. Emit a `decision` event and a `write` event through `EventsPort`. `emit` never throws (PHASE-10 contract); still do not wrap it in a way that can fail the voice turn — this function already runs after the response.
+
+Do not import PHASE-09's `recordDecision`. This local writer is how the route stays parallel-safe. PHASE-16's smoke hits this route, not the PHASE-09 module.
+
+### `app/api/tools/_lib/handlers.ts`
 
 ```ts
-composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })
-  === "Confirm: 300 mg of amiodarone, IV push. Say confirm."
+import type { Hit } from "@/lib/contracts";
+
+export type ToolName =
+  | "recall_memory"
+  | "get_protocol"
+  | "log_timeline"
+  | "propose_readback"
+  | "confirm_readback"
+  | "record_decision"
+  | "close_call";
+
+export const TOOL_NAMES: readonly ToolName[];
+
+export async function handleTool(
+  tool: string,
+  body: unknown,
+): Promise<{ status: number; json: unknown }>;
 ```
 
-Duplicating a function is normally wrong. Here the alternative is a cross-phase import of a module that may not exist yet, and the function is four lines of deterministic formatting pinned by an identical test in both phases. That is the cheaper of the two bad options.
+Unknown `tool` values return `{ status: 404, json: { error: "unknown tool" } }`. Valid tools parse `body` with the matching Zod schema from `@/lib/contracts`. Zod failure returns `{ status: 400, json: { error: <flattened message> } }`. Do not copy Zod v3 error shapes; use the v4 issue API on the installed `zod@4.4.3`.
 
-`writeDecision` must set **both** `embedding` and `embeddedText` (`contracts.md` §13) and a non-empty `rationale` (Critical Rule 4, also enforced by PHASE-02's server-side validator). It throws on an empty rationale rather than writing a placeholder, because a placeholder rationale in the permanent record is the exact harm this project claims to prevent.
+| `tool` | Port / write | Response | Budget |
+|---|---|---|---|
+| `recall_memory` | `retrieval().fanOut(query, { callTypeFamily })` | `{ summary, spoken, hits }` | 400 ms warm |
+| `get_protocol` | `retrieval().fanOut(topic)` then first `source === "runbooks"` hit | `{ spoken, text, sectionTitle, pageStart }` | 400 ms warm |
+| `log_timeline` | `$push` a `TimelineEntry` on the incident; emit `voice` if source is medic/agent | `{ ok: true }` | 150 ms |
+| `propose_readback` | `composeReadback` only | `{ readbackText }` | 300 ms, **no LLM** |
+| `confirm_readback` | `graph().resume(incidentId, { confirmed, verbatimOk })` | `{ ok, resumedAt }` | 500 ms |
+| `record_decision` | ack, then `queueMicrotask` / `setImmediate` the background write | `{ ok: true, ack }` | 300 ms to ack |
+| `close_call` | `graph().resume` with close, or a local postmortem draft via `llm().text` if the graph returns nothing | `{ postmortemId, pcrPreview }` | 8 s |
+
+Details that are easy to get wrong:
+
+- **`recall_memory`.** `summary` is one sentence, ≤ 25 words, built from the top hit's `spoken` or the literal `new signature, no prior history` when `hits` is empty. Cap every `hits[i].spoken` at `SPOKEN_WORD_CAP` before returning. Emit a `retrieval` event. Never read `_groundTruth`.
+- **`get_protocol`.** If no runbook hit exists, return `{ spoken: "No matching protocol section.", text: "", sectionTitle: "", pageStart: 0 }` with status 200, not 404. A missing guideline is a normal retrieval miss, not a missing route. Attribute in `spoken`: prefix `From NASEMSO, ` so the agent has attribution to read aloud.
+- **`log_timeline`.** `$push` `{ t: new Date(), source, text }`. Reject `source` values outside `"medic" | "agent" | "system"` via the Zod schema, not a runtime check after the write.
+- **`propose_readback`.** Call `composeReadback` and return. Grep the handler file for `llm` and `embeddings` — both must be absent. Optionally emit a `readback` event with `state: "awaiting"`.
+- **`confirm_readback`.** `resumedAt` is `result.interrupt === null ? "execute_record" : result.interrupt.type === "readback" ? "readback_gate" : null` mapped onto `GraphNode | null`. Emit `readback` with `state: "confirmed" | "rejected"`.
+- **`record_decision`.** `ack` is the fixed string `Recorded.` Return before the insert. The document must appear in `decisions` within 3 seconds when rationale is extractable.
+- **`close_call`.** Set `closeRequested` by resuming the graph with `{ close: true }` if that is what the fake accepts; otherwise write a live postmortem via `llm().text` capped at 200 words, embed it, insert with `origin: "live"`, and emit `pcr` + `write`. Never read `_groundTruth` to fill `whatChanged`.
 
 ### `app/api/tools/[tool]/route.ts`
 
-One dynamic handler dispatching on the tool name, matching `contracts.md` §10.
-
 ```ts
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(
   req: Request,
@@ -168,294 +198,190 @@ export async function POST(
 ): Promise<Response>;
 ```
 
-**`params` is a `Promise` in Next.js 16** — `const { tool } = await ctx.params;`. Copying a Next 14/15 handler signature from memory fails to compile, and the error message points at the type of `params` rather than at the version change.
+**Next.js 16: `params` is a `Promise`.** `const { tool } = await params;` A copied Next 14/15 signature will not compile under `strict`.
 
-`runtime = "nodejs"` on every handler in this phase: the Mongo driver cannot run on the edge runtime.
+Order: `requireSecret` → `await params` → `await req.json()` (empty body becomes `{}`) → `handleTool` → `Response.json(json, { status })`. Catch thrown errors and return `500` `{ error: "internal" }` without leaking stack traces.
 
-Order of operations, no exceptions: `checkSecret` → `isToolName` (`404` with `{ error: "unknown tool" }`) → `parseBody` with that tool's Zod schema (`400` with `{ error: <message> }`) → `withTiming(tool, budget, handler)`. Validate before doing any work so a malformed body from a model that hallucinated an argument name costs nothing.
+### `app/api/demo/_lib/clone.ts`
 
-Errors are always `{ error: string }` with `400` validation / `401` bad secret / `404` not found / `500` internal (`contracts.md` §10). **Never return a 500 body containing a stack trace** — the response text goes to the voice model, which may read it aloud.
+```ts
+export type FirePattern = "arrest" | "cardiac";
 
-#### The seven handlers
+export async function cloneLiveIncident(
+  pattern: FirePattern,
+  incidentId?: string,
+): Promise<{ incidentId: string; ref: string; displayId: string }>;
+```
 
-Budgets are from `contracts.md` §10 and are **requirements, not aspirations,** because latency is an explicitly judged ElevenLabs criterion.
+Clone a **real ingested historical row** (or a fixture row) into a new `isLive: true` document:
 
-| `tool` | Request | Response | Budget |
-|---|---|---|---|
-| `recall_memory` | `{ incidentId, query }` | `{ summary: string; spoken: string; hits: Hit[] }` | **400 ms** |
-| `get_protocol` | `{ incidentId, topic }` | `{ spoken: string; text: string; sectionTitle: string; pageStart: number }` | **400 ms** |
-| `log_timeline` | `{ incidentId, text, source }` | `{ ok: true }` | 150 ms |
-| `propose_readback` | `{ incidentId, utterance, drug?, dose?, route? }` | `{ readbackText: string }` | **300 ms**, synchronous, no LLM |
-| `confirm_readback` | `{ incidentId, confirmed, verbatimOk }` | `{ ok: boolean; resumedAt: GraphNode \| null }` | 500 ms |
-| `record_decision` | `{ incidentId, utterance }` | `{ ok: true; ack: string }` | 300 ms, write happens after the response |
-| `close_call` | `{ incidentId }` | `{ postmortemId: string; pcrPreview: string }` | 8 s |
+| `pattern` | Source filter |
+|---|---|
+| `arrest` | `cad.initialCallType === "UNC"` and `_groundTruth.finalCallType === "ARREST"` |
+| `cardiac` | `cad.initialCallType === "SICK"` and `_groundTruth.finalCallType === "CARD"` |
 
-**`recall_memory`.** Read the incident with `PUBLIC_INCIDENT_PROJECTION`, call `retrieval().fanOut(query, { callTypeFamily })`, emit a `retrieval` event carrying the full hits so the dashboard's right pane renders scores, and return. `summary` is one sentence for the model's context; `spoken` is what the agent reads aloud and is composed from the top hits' `spoken` fields.
+Prefer Atlas `incidents` with `isLive: false`. If none match, read `fixtures/incidents.json`. If `incidentId` is provided, clone that row instead of picking, but still require it to match the pattern; otherwise 400.
 
-**Every `spoken` string returned to the voice agent is capped at `SPOKEN_WORD_CAP` (40) words, with the full `text` returned alongside for the dashboard.** Truncate defensively here even though PHASE-07 promises it, because the agent reads this aloud and a 200-word guideline chunk at TTS pace is ninety seconds of a medic listening to a robot while working a patient.
+The live document:
 
-When `fanOut` returns nothing, return `{ summary: "no prior record", spoken: "No prior record of this pattern.", hits: [] }`. Do not synthesize a plausible-sounding memory. The empty case is the one a judge will deliberately trigger.
+- New `incidentId`: `live-${Date.now()}` (or the caller-supplied id if unused).
+- Recompute `displayId` and `ref` via `toDisplayId` / `toRef`.
+- `status: "dispatched"`, `timeline: []`, `isLive: true`, `createdAt`/`updatedAt` now.
+- **Do not copy `_groundTruth` onto the live document.** Critical Rule 6: answers stay quarantined on the historical seed. A live clone that carries the final call type will leak it into any careless `findOne`.
 
-**`get_protocol`.** `fanOut(topic)` filtered to `source === "runbooks"`, take rank 1, return `spoken` / `text` / `sectionTitle` / `pageStart`. `404` with `{ error: "no protocol match" }` when there is no runbook hit. **`spoken` must begin with the section title** so the agent quotes with attribution — the scope guardrail permits quoting retrieved guidance *with attribution* and nothing else, and putting the attribution first in the string means the model cannot drop it without also dropping the content. Emit a `retrieval` event.
-
-**`log_timeline`.** `$push` the entry onto `incidents.timeline`, `$set` `updatedAt`. When `source` is `medic` or `agent`, also emit a `voice` event with a `clock` of `mm:ss` elapsed since `cad.incidentDatetime` (which is why `/api/demo/fire` sets that field to now — see below). `404` when the incident does not exist.
-
-**`propose_readback`.** Synchronous, deterministic, **no LLM in the path.** Call `composeReadback`, emit a `readback` event with `state: "awaiting"` and the exact text, return `{ readbackText }`. The agent must speak this verbatim on this turn, and an LLM can paraphrase a dose or round a number. Verbatim means verbatim, and the only way to guarantee it is that no model ever sees the string before the agent says it.
-
-This handler **does not touch the graph.** The graph raises its own `interrupt()` at `readback_gate`; `confirm_readback` is what resumes it. Two writers to one gate is how you get a call that resumes twice.
-
-**`confirm_readback`.** Call `graph().resume(incidentId, { confirmed, verbatimOk })`, then call `graph().state(incidentId)` and set `resumedAt` to `next[0]` when it is a member of `GRAPH_NODE_ORDER`, otherwise `null`. The extra `state()` call costs one checkpoint read and makes the response honest instead of guessed. Emit a `readback` event with `state: "confirmed"` or `"rejected"`, and a `checkpoint` event carrying `checkpointCount` from the same `state()` call — **this is where the dashboard's checkpoint counter gets its live value,** and that counter is what the operator points at immediately before the kill-and-resume.
-
-**`record_decision`.** Return `{ ok: true, ack: "Recorded." }` **immediately**, then do the work in a detached task. Blocking the voice turn for a second of LLM extraction plus an embedding call is audible and reads as a slow agent, which is the criterion this phase is judged on.
-
-The ack is deliberately one word: it is spoken, and anything longer wastes a turn.
-
-The background task, in order:
-
-1. `appendTimeline(incidentId, { source: "medic", text: utterance, kind: "narration" })`. **The utterance is never dropped.** The black box records everything; only the *decision document* requires a rationale.
-2. `extractRationale(utterance)`.
-3. If `rationale === null`: write **no** decision document, log a line containing `RATIONALE MISSING`, emit no `decision` event, and stop. Never invent a rationale. A fabricated one puts a made-up justification in the permanent clinical record, which is worse than a gap, and PHASE-02's validator would reject it anyway. The agent asking for the reason is a system-prompt behaviour (PHASE-13), not a tool response.
-4. Otherwise `writeDecision(...)`, then emit a `decision` event with `rationaleRecorded: true` and `protocolConflict`.
-
-`protocolConflict` defaults to `false` and **the LLM must not set it.** Labeling a medic's action as a protocol violation from one sentence is precisely the clinical judgment the scope guardrail forbids.
-
-For the detached task use a plain promise with a `.catch()` that logs. We run a long-lived Node process (`next dev` / `next start`), not a serverless function that freezes after the response, so a detached promise completes. If you would rather use `after()` from `next/server`, confirm its export name and stability in the installed Next 16.3 typings first rather than from memory.
-
-**`close_call`.** `writePostmortem(incidentId)`, set the incident `status: "closed"`, emit a `pcr` event with the preview and a `status` event with `closed`, return `{ postmortemId, pcrPreview }`. This is the only route allowed to exceed one second; the agent speaks a filler line ("drafting the report now") while it runs, so the 8 s budget is tolerable.
-
-The postmortem **must** be written with `origin: "live"` so `/api/demo/reset` can delete it without touching the seeded corpus. Those two routes are coupled through this one field.
+Then `graph().start(newId)` and emit a `status` event. If `start` throws because the fake or the real graph is unhappy, still return the ids — the worker (PHASE-12) is the production trigger, and this route must not fail a rehearsal because the graph phase is mid-flight. Log `GRAPH START FAILED` in that case.
 
 ### `app/api/demo/fire/route.ts`
 
 ```ts
 export const runtime = "nodejs";
 export async function POST(req: Request): Promise<Response>;
-// Request  { pattern: "arrest" | "cardiac"; incidentId?: string }
-// Response { incidentId: string; ref: string; displayId: string }
 ```
 
-Pick a real ingested incident matching the requested pattern, clone its `cad` block into a **fresh live document** with a new `incidentId`, and insert it. That insert is what fires PHASE-12's change stream, which is the "phone rings by itself" beat. Real dispatch fields, live document.
-
-| `pattern` | Source selection |
-|---|---|
-| `arrest` | `cad.initialCallType: "UNC"` with a true outcome of `ARREST` |
-| `cardiac` | `cad.initialCallType: "SICK"` with a true outcome of `CARD` |
-
-`incidentId` in the request overrides pattern selection and names the source incident to clone.
-
-**On reading `_groundTruth` here.** Confirming the true outcome means querying `_groundTruth.finalCallType`, and Critical Rule 6 quarantines that field. Selection is not an agent read path, so this route may **query** it — but it must never copy it into the live document and never return it. The created document has no `_groundTruth` field at all, which is what keeps every retrieval path and graph node honest. There is an acceptance criterion for exactly that.
-
-If querying a quarantined field from a route bothers you, the cheaper alternative is to match on `cad.initialCallType` and `callTypeFamily` only and accept a source whose true outcome you did not verify. The demo beat is identical; you lose the guarantee that call two is a genuine undertriage, which is the fact the pitch rests on. Prefer the query.
-
-The new document:
-
-| Field | Value | Why |
-|---|---|---|
-| `incidentId` | `live-<Date.now()>` | Matches the `contracts.md` §3 example; a new id every fire keeps `seq` counters clean |
-| `displayId` | `toDisplayId(incidentId)` | Spoken aloud; never speak the full id |
-| `ref` | `toRef(incidentId, now)` | The `YYMMDD-NNNN` dashboard header |
-| `status` | `"dispatched"` | |
-| `isLive` | `true` | The worker's change stream filters on this |
-| `cad` | cloned from the source, **except `incidentDatetime` set to now** | |
-| `cad.unit` | source value, or `"14B"` if absent | Synthesized for the demo; matches `reference.png` |
-| `callTypeFamily` | `callTypeFamily(cad.initialCallType)` | |
-| `timeline` | `[]` | |
-| `_groundTruth` | **absent** | Critical Rule 6 |
-| `createdAt` / `updatedAt` | now | The poll fallback's high-water mark reads `createdAt` |
-
-`cad.incidentDatetime` must be **now**, not the historical timestamp. `ref` is derived from it, and `log_timeline`'s `clock` is elapsed time since it — keeping the original would render a header dated years ago and an elapsed timer measured in months.
-
-Emit a `status` event immediately so the dashboard header populates even before the worker reacts.
-
-`404` with `{ error: "no source incident for pattern <p> — run npm run ingest:incidents" }` when nothing matches. Naming the fix in the error text saves ten minutes of confusion twenty minutes before the pitch.
+Validate with the contract Zod schema (`{ pattern: "arrest" | "cardiac", incidentId?: string }`). Return `{ incidentId, ref, displayId }`.
 
 ### `app/api/demo/close/route.ts`
 
 ```ts
-// Request { incidentId } → Response { ok: true }
+export const runtime = "nodejs";
+export async function POST(req: Request): Promise<Response>;
 ```
 
-The operator's manual fallback for the transfer-of-care beat when the agent does not call `close_call` on its own. It performs the same work — set `status: "closed"`, emit a `status` event, generate the postmortem in the background — but returns only `{ ok: true }` per the contract. Existing because on stage, if the model skips the closing tool, the operator needs one button that continues the demo.
+`{ incidentId }` → set `status: "closed"` on that live incident, emit `status`, return `{ ok: true }`. 404 if the incident does not exist.
 
 ### `app/api/demo/reset/route.ts`
 
 ```ts
-// Request {} → Response { deleted: Record<string, number> }
+export const runtime = "nodejs";
+export async function POST(req: Request): Promise<Response>;
 ```
 
-**Explicit, narrow filters. Nothing wildcard.**
+Deletes **only** the live residue of a rehearsal. The filter list is closed:
 
-| Collection | Filter | Never touched |
-|---|---|---|
-| `decisions` | `{}` | — (never seeded, Critical Rule 5) |
-| `postmortems` | `{ origin: "live" }` | `seeded` and `curated` |
-| `remediations` | `{ origin: "live" }` | `seeded` and `curated` |
-| `events` | `{}` | — |
-| `checkpoints` | `{}` | — |
-| `checkpoint_writes` | `{}` | — |
-| `incidents` | `{ isLive: true }` | historical incidents |
-| `runbooks` | **not deleted** | the whole NASEMSO corpus |
-| `_embed_cache` | **not deleted** | deleting it costs money and minutes of re-embedding |
-| `_watch_state` | **not deleted** | PHASE-12's resume tokens and PHASE-10's `seq` counters |
+| Collection | Delete filter |
+|---|---|
+| `decisions` | `{}` — the collection is live-only (Critical Rule 5) |
+| `postmortems` | `{ origin: "live" }` |
+| `remediations` | `{ origin: "live" }` |
+| `events` | `{}` |
+| `checkpoints` | `{}` |
+| `checkpoint_writes` | `{}` |
+| `incidents` | `{ isLive: true }` |
 
-Deleting the seed corpus twenty minutes before the pitch and having to re-embed it is a self-inflicted wound, which is why the filters are spelled out per collection instead of iterating a list. Return `deleted` keyed by collection name with the actual `deletedCount` from each operation so the operator can see what happened, and log one loud line with a timestamp — an unexplained empty dashboard should be diagnosable in ten seconds.
+Return `{ deleted: Record<string, number> }` with one key per collection above, using `deletedCount`.
 
-A stale resume token in `_watch_state` after deleting all events is fine: deleting documents does not invalidate an oplog token, and PHASE-12 handles an invalid token by restarting fresh.
+**Must never match:** `runbooks`, `postmortems` with `origin: "seeded"` or `"curated"`, `remediations` with `origin: "seeded"` or `"curated"`, historical `incidents` (`isLive: false`), `_embed_cache`, `_watch_state`. Re-embedding the seed corpus twenty minutes before the pitch is a self-inflicted wound. PHASE-16 and PHASE-15 both assert the seeded floors survive this route.
 
-Note the residual risk honestly: per `contracts.md` §10 the demo routes carry no shared-secret requirement, so on a public tunnel this endpoint is reachable by anyone who has the URL. The zero-cost mitigation is not pasting the tunnel URL anywhere public. Adding auth here would be a contract change and would break PHASE-15's scripts, so do not add it unilaterally.
+Count seeded postmortems, runbooks, and historical incidents **before and after**. If any of those three counts drop, throw and return 500 — do not swallow a bad filter.
+
+Do not `deleteMany({})` on `_watch_state`. PHASE-10 stores `seq:*` counters there and PHASE-12 stores `watch:*` / `poll:*` resume tokens. Resetting them looks convenient and breaks both streams.
 
 ### `app/api/state/[incidentId]/route.ts`
 
 ```ts
 export const runtime = "nodejs";
 export async function GET(
-  req: Request,
+  _req: Request,
   ctx: { params: Promise<{ incidentId: string }> },
 ): Promise<Response>;
-// Response { values, next, checkpointCount }
 ```
 
-A thin pass-through of `graph().state(incidentId)`. **`params` is a `Promise`.** `404` with `{ error: "unknown incident" }` when the graph has no thread for that id. This is the dashboard's fallback when SSE drops and the operator's fastest way to see which node the graph is parked on.
+`await params`, then `graph().state(incidentId)`. Return `{ values, next, checkpointCount }`. Empty `incidentId` is 400. Unknown thread returns whatever the fake/real graph returns; do not 404 on an empty state — a dashboard may poll before `start`.
 
 ### `app/api/counters/route.ts`
 
 ```ts
 export const runtime = "nodejs";
 export async function GET(): Promise<Response>;
-// Response { counts: Record<string, number>; checkpointCount: number; embedding: { provider, model, dim } }
 ```
 
-`counts` covers `incidents`, `decisions`, `remediations`, `runbooks`, `postmortems`, `events`. `checkpointCount` is a count of `checkpoints`. `embedding` is `(await embeddings()).info()`.
+```ts
+{
+  counts: Record<string, number>;      // incidents, decisions, remediations, runbooks, postmortems, events, checkpoints
+  checkpointCount: number;             // same as counts.checkpoints
+  embedding: { provider: string; model: string; dim: number };
+}
+```
 
-Use `countDocuments({})` for the five small collections and `estimatedDocumentCount()` for `incidents`, which holds tens of thousands of rows and is only displayed as a total. Exact counts matter for the small ones because the reset acceptance criterion compares them before and after, and `estimatedDocumentCount` reads cached metadata that can be stale right after a delete.
-
-This route doubles as the **warmup endpoint**, and that is worth stating because it protects every latency budget in this phase. The first request to a cold Next process pays TLS plus Atlas topology discovery, several hundred milliseconds that will blow a 300 ms budget on the very first tool call of the demo. `embeddings().info()` additionally forces the embedding module to load. The budgets above are measured on a warm process; PHASE-15's preflight must hit `/api/counters` and one `recall_memory` before the pitch.
+`embedding` comes from `(await embeddings()).info()`. Under `EMBEDDINGS_MODE=fake` that is the fake's info, which is correct and expected.
 
 ## Acceptance Criteria
 
 - [ ] `npm run typecheck` passes with zero errors
 - [ ] `npm run build` succeeds
-- [ ] Every route from `contracts.md` §10 exists at exactly its documented path and every handler exports `runtime = "nodejs"`
-- [ ] Both dynamic handlers `await` their `params` — a search for `params.tool` or `params.incidentId` without `await` returns nothing
-- [ ] **Verifiable with all other ports faked:** with `RETRIEVAL_MODE=fake GRAPH_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake`, all seven `/api/tools/*` routes return `200` with a body matching the response shape in the table
-- [ ] Every `/api/tools/*` route returns `401` with `{ error: ... }` when `X-BlackBox-Secret` is absent, and `401` when it is present but wrong
-- [ ] With `TOOL_SHARED_SECRET` unset, a correctly formed tool request returns `500`, not `200`
-- [ ] A body missing a required field returns `400` with `{ error: string }` and performs no write
-- [ ] `POST /api/tools/nonexistent_tool` with a valid secret returns `404`
-- [ ] Every tool response is logged as `[tool] <name> <ms>ms budget=<n>ms`, and `recall_memory`, `get_protocol`, `propose_readback`, and `log_timeline` are each under their budget on a warm process
-- [ ] `composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" })` returns exactly `Confirm: 300 mg of amiodarone, IV push. Say confirm.`
-- [ ] `propose_readback` makes **zero** LLM calls — verified with `LLM_MODE=fake` and a counter or log on the fake, or by inspection that no `llm()` reference exists in that handler
-- [ ] `record_decision` responds in under 300 ms even when the fake LLM is given an artificial 2-second delay, proving the write is genuinely off the response path
-- [ ] An utterance containing a stated reason produces exactly one new `decisions` document with a non-empty `rationale`, both `embedding` and `embeddedText` set, and one `decision` event *(needs Atlas)*
-- [ ] An utterance with no stated reason (use the no-reason cases in `fixtures/utterances.json`) produces **zero** new `decisions` documents, logs `RATIONALE MISSING`, and still appends the utterance to `incidents.timeline` *(needs Atlas)*
-- [ ] No `spoken` string in any tool response exceeds 40 words, checked on every hit in the response, not just the first
-- [ ] `recall_memory` against an empty corpus returns `hits: []` and a spoken string stating there is no prior record, and never a fabricated incident reference
-- [ ] `get_protocol`'s `spoken` starts with the `sectionTitle`
-- [ ] `confirm_readback` returns a `resumedAt` that is either `null` or a member of `GRAPH_NODE_ORDER`, and emits both a `readback` and a `checkpoint` event
-- [ ] `POST /api/demo/fire` returns `{ incidentId, ref, displayId }`; the created document has `isLive: true`, `status: "dispatched"`, `cad.incidentDatetime` within 5 seconds of now, and **no `_groundTruth` field** *(needs Atlas)*
-- [ ] `ref` matches `/^\d{6}-\d{4}$/` and `displayId` matches `/^\d{4}$/`
-- [ ] `POST /api/demo/fire` with a pattern that matches nothing returns `404` with a message naming `npm run ingest:incidents`
-- [ ] **`POST /api/demo/reset` leaves the seed corpus byte-intact:** counts of `runbooks`, `postmortems` with `origin: "seeded"` or `"curated"`, `remediations` with the same, and `incidents` with `isLive: false` are identical before and after; `_embed_cache` and `_watch_state` counts are also unchanged
-- [ ] `POST /api/demo/reset` returns non-zero counts for `decisions`, `events`, and live `incidents` when they exist, and returns `200` with all-zero counts on an already-clean database
-- [ ] `GET /api/state/[incidentId]` returns `{ values, next, checkpointCount }` for a known incident and `404` for an unknown one
-- [ ] `GET /api/counters` returns all six collection counts plus `checkpointCount` and an `embedding` object with `provider`, `model`, and `dim`
-- [ ] No response body anywhere in this phase contains a stack trace
-- [ ] No file was created or modified outside `app/api/tools/**`, `app/api/demo/**`, `app/api/state/**`, `app/api/counters/**`
+- [ ] All seven tools exist at `POST /api/tools/[tool]` and reject a missing or wrong `X-BlackBox-Secret` with `401` `{ error: "unauthorized" }`
+- [ ] An invalid JSON body returns `400` `{ error: string }`
+- [ ] An unknown tool name returns `404` `{ error: string }`
+- [ ] `params` is awaited in both `[tool]` and `[incidentId]` routes — `rg -n "params: Promise" app/api` finds both, and `rg -n "params.tool|params.incidentId" app/api` finds nothing that is not after an `await`
+- [ ] Every handler file exports `runtime = "nodejs"`
+- [ ] `propose_readback` with `{ utterance, drug: "epinephrine", dose: "1 milligram", route: "IV" }` returns a `readbackText` containing the substrings `1 milligram`, `epinephrine`, and `IV`, and finishes in under 300 ms
+- [ ] `rg -n "llm|embeddings|openai" app/api/tools/_lib/readback.ts app/api/tools/_lib/handlers.ts` does not match `propose_readback`'s code path (no LLM import in `readback.ts`; `handlers.ts` must not call `llm()` inside the `propose_readback` branch)
+- [ ] `record_decision` returns `{ ok: true, ack: string }` in under 300 ms, and when the utterance contains a reason, a `decisions` document with a non-empty `rationale` appears within 3 seconds
+- [ ] `record_decision` with an utterance that has no reason inserts **zero** documents
+- [ ] `recall_memory` and `get_protocol` return in under 400 ms warm against fake retrieval, and every `spoken` field is 40 words or fewer
+- [ ] `confirm_readback` with `{ confirmed: true, verbatimOk: true }` returns `ok: true` and a subsequent `GET /api/state/[incidentId]` no longer sits at `readback_gate` when the fake graph is used
+- [ ] `POST /api/demo/fire` with `{ pattern: "arrest" }` returns `{ incidentId, ref, displayId }` and inserts one `isLive: true` incident whose `cad.initialCallType` is `UNC` and which has **no** `_groundTruth` field
+- [ ] `POST /api/demo/fire` with `{ pattern: "cardiac" }` clones a `SICK` incident the same way
+- [ ] `POST /api/demo/reset` deletes all `decisions`, live postmortems, live remediations, all events, all checkpoints, and `isLive: true` incidents
+- [ ] **Seeded corpus survives reset:** `postmortems` with `origin: "seeded"` ≥ 30 (or unchanged if the cluster is below the floor), `runbooks` ≥ 30 (or unchanged), historical `incidents` (`isLive: false`) unchanged. Assert counts before and after. Do not use the old warehouse numbers (2000 / 300).
+- [ ] `GET /api/state/[incidentId]` returns `{ values, next, checkpointCount }`
+- [ ] `GET /api/counters` returns `counts`, `checkpointCount`, and `embedding`
+- [ ] **Verifiable with all other ports faked:** the fire → propose_readback → confirm_readback → record_decision → close → reset path succeeds with `GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake`
+- [ ] No file was created or modified outside this phase's four `app/api/*` trees
+- [ ] `rg -n "_groundTruth" app/api` returns no read of that field except the historical-source filter inside `clone.ts`
 
 ## Verification
 
-PowerShell note: set env vars with `$env:VAR="value"` on a preceding line; the inline `VAR=value cmd` form is bash-only.
+PowerShell note: set env vars with `$env:VAR="value"` on a preceding line; the inline `VAR=value cmd` form below is bash-only.
 
 ```bash
 npm run typecheck
 npm run build
+
+# All other ports faked. Dev server in one terminal:
+GRAPH_MODE=fake RETRIEVAL_MODE=fake EVENTS_MODE=fake \
+  LLM_MODE=fake EMBEDDINGS_MODE=fake VOICE_MODE=fake npm run dev
 ```
 
-Start the app fully faked, so nothing here can accidentally depend on another phase:
+In a second terminal, with `SECRET` set to `TOOL_SHARED_SECRET`:
 
 ```bash
-TOOL_SHARED_SECRET=devsecret RETRIEVAL_MODE=fake GRAPH_MODE=fake EVENTS_MODE=fake \
-  LLM_MODE=fake EMBEDDINGS_MODE=fake npm run dev
+# 401 without the header
+curl -s -o /tmp/bb.json -w "%{http_code}" -X POST http://localhost:3000/api/tools/recall_memory \
+  -H "content-type: application/json" -d '{"incidentId":"x","query":"unc"}'
+# expect 401
+
+# Fire arrest, then cardiac
+curl -s -X POST http://localhost:3000/api/demo/fire \
+  -H "content-type: application/json" -d '{"pattern":"arrest"}'
+curl -s -X POST http://localhost:3000/api/demo/fire \
+  -H "content-type: application/json" -d '{"pattern":"cardiac"}'
+
+# Readback must be verbatim and fast
+time curl -s -X POST http://localhost:3000/api/tools/propose_readback \
+  -H "content-type: application/json" -H "X-BlackBox-Secret: $SECRET" \
+  -d '{"incidentId":"ID","utterance":"pushing one milligram of epi, IV","drug":"epinephrine","dose":"1 milligram","route":"IV"}'
+# expect readbackText contains "1 milligram" and "epinephrine"; wall time < 0.3s
+
+# Decision ack-then-write
+time curl -s -X POST http://localhost:3000/api/tools/record_decision \
+  -H "content-type: application/json" -H "X-BlackBox-Secret: $SECRET" \
+  -d '{"incidentId":"ID","utterance":"skipping the supraglottic, family reports recent neck surgery"}'
+# expect { ok: true } in < 0.3s; then within 3s:
+# decisions.countDocuments({ incidentId: "ID" }) === 1 and rationale nonempty
+
+# Reset must not eat the seed
+# record seeded postmortem / runbook / historical incident counts, POST /api/demo/reset, re-count
+curl -s -X POST http://localhost:3000/api/demo/reset -H "content-type: application/json" -d '{}'
+curl -s http://localhost:3000/api/counters
 ```
 
-Auth, first:
-
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/tools/recall_memory \
-  -H 'content-type: application/json' -d '{"incidentId":"x","query":"chest pain"}'          # 401
-
-curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/tools/recall_memory \
-  -H 'content-type: application/json' -H 'X-BlackBox-Secret: wrong' \
-  -d '{"incidentId":"x","query":"chest pain"}'                                              # 401
-
-curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/tools/recall_memory \
-  -H 'content-type: application/json' -H 'X-BlackBox-Secret: devsecret' -d '{"incidentId":"x"}'  # 400
-
-curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/tools/not_a_tool \
-  -H 'content-type: application/json' -H 'X-BlackBox-Secret: devsecret' -d '{}'             # 404
-```
-
-Fire an incident, then walk the whole tool sequence against it:
-
-```bash
-S='X-BlackBox-Secret: devsecret'
-J='content-type: application/json'
-
-FIRE=$(curl -s -X POST localhost:3000/api/demo/fire -H "$J" -d '{"pattern":"arrest"}')
-echo "$FIRE"
-ID=$(echo "$FIRE" | npx tsx -e "process.stdin.on('data',d=>console.log(JSON.parse(d).incidentId))")
-
-curl -s -X POST localhost:3000/api/tools/recall_memory  -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"query\":\"unconscious male, agonal breathing\"}"
-curl -s -X POST localhost:3000/api/tools/get_protocol   -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"topic\":\"adult cardiac arrest\"}"
-curl -s -X POST localhost:3000/api/tools/log_timeline    -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"text\":\"starting compressions\",\"source\":\"medic\"}"
-curl -s -X POST localhost:3000/api/tools/propose_readback -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"utterance\":\"pushing 300 of amio\",\"drug\":\"amiodarone\",\"dose\":\"300 mg\",\"route\":\"IV push\"}"
-curl -s -X POST localhost:3000/api/tools/confirm_readback -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"confirmed\":true,\"verbatimOk\":true}"
-curl -s -X POST localhost:3000/api/tools/record_decision  -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"utterance\":\"holding off on the supraglottic, family says recent neck surgery\"}"
-curl -s -X POST localhost:3000/api/tools/close_call       -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\"}"
-```
-
-The `propose_readback` response must be exactly `{"readbackText":"Confirm: 300 mg of amiodarone, IV push. Say confirm."}`.
-
-Latency on a warm process — run each twice and read the second number from the server log:
-
-```bash
-for t in recall_memory get_protocol log_timeline propose_readback; do
-  curl -s -o /dev/null -w "$t %{time_total}s\n" -X POST localhost:3000/api/tools/$t \
-    -H "$J" -H "$S" -d "{\"incidentId\":\"$ID\",\"query\":\"chest pain\",\"topic\":\"chest pain\",\"text\":\"x\",\"source\":\"medic\",\"utterance\":\"x\"}"
-done
-```
-
-The reset safety check — the single most expensive thing to get wrong in this phase:
-
-```bash
-npx tsx -e "
-import { col } from './src/lib/db/client';
-import { RUNBOOKS, POSTMORTEMS, REMEDIATIONS, INCIDENTS, EMBED_CACHE, WATCH_STATE } from './src/lib/contracts';
-const snap = async () => ({
-  runbooks: await col(RUNBOOKS).countDocuments({}),
-  seededPm: await col(POSTMORTEMS).countDocuments({ origin: { \$in: ['seeded','curated'] } }),
-  seededRem: await col(REMEDIATIONS).countDocuments({ origin: { \$in: ['seeded','curated'] } }),
-  histInc: await col(INCIDENTS).countDocuments({ isLive: false }),
-  cache: await col(EMBED_CACHE).countDocuments({}),
-  watch: await col(WATCH_STATE).countDocuments({}),
-});
-const before = await snap();
-const res = await fetch('http://localhost:3000/api/demo/reset', { method:'POST', headers:{'content-type':'application/json'}, body:'{}' });
-console.log('deleted', await res.json());
-const after = await snap();
-console.log('before', before); console.log('after ', after);
-console.log('SEED INTACT:', JSON.stringify(before) === JSON.stringify(after));
-process.exit(0);
-"
-```
-
-`SEED INTACT: true` is the criterion. Anything else means the filters are wrong and the corpus has to be re-embedded.
-
-```bash
-curl -s localhost:3000/api/counters
-curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/api/state/does-not-exist   # 404
+rg -n "params: Promise" app/api
+rg -n "_groundTruth" app/api
+rg -n "llm|embeddings" app/api/tools/_lib/readback.ts
 ```
 
 ## Handoff Note
 
-Two things other phases depend on. PHASE-13: every tool call is logged as `[tool] <name> <ms>ms budget=<n>ms`, which is how you prove the agent actually invoked tools; and `composeReadback`'s output string is pinned by an identical assertion in both specs, so do not change the format on one side. PHASE-14: `/api/counters` is the bootstrap for the write counters and the checkpoint counter, and `/api/state/[incidentId]` is the fallback when the SSE stream drops.
+PHASE-13: tool URLs are `POST ${PUBLIC_BASE_URL}/api/tools/<name>` with header `X-BlackBox-Secret`. `propose_readback` is the verbatim gate; do not replace it with an LLM in the agent prompt. PHASE-12: `fire` inserts `isLive: true` and may or may not have called `graph().start` — the worker is the production trigger. PHASE-16: smoke drives this exact path; if reset wipes runbooks, the bug is the delete filter in this phase.

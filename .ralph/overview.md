@@ -99,6 +99,7 @@ Every cross-phase dependency is an interface (a "port"), and PHASE-01 ships a **
 |---|---|---|---|
 | `EmbeddingsPort` | PHASE-03 | hash → unit vector, correct dimension | `EMBEDDINGS_MODE=fake` |
 | `RetrievalPort` | PHASE-07 | fixture hits from `fixtures/hits.json` | `RETRIEVAL_MODE=fake` |
+| `MemoryPort` | PHASE-09 | in-memory ids, still rejects empty rationale | `MEMORY_MODE=fake` |
 | `LlmPort` | PHASE-01 (thin) | canned templated strings | `LLM_MODE=fake` |
 | `EventsPort` | PHASE-10 | append to an in-memory array | `EVENTS_MODE=fake` |
 | `GraphPort` | PHASE-08 | scripted state transitions | `GRAPH_MODE=fake` |
@@ -120,7 +121,7 @@ So PHASE-04 (ingestion) is built and verified with fake embeddings, PHASE-08 (gr
 | 06 | `src/lib/memory/seed.ts`, `scripts/seed-memory.ts`, `fixtures/curated-postmortems.json` | 01 |
 | 07 | `src/lib/retrieval/**`, `scripts/verify-retrieval.ts` | 01 |
 | 08 | `src/lib/graph/**`, `scripts/run-graph-local.ts`, `scripts/kill-resume-drill.ts` | 01 |
-| 09 | `src/lib/memory/decisions.ts`, `src/lib/memory/postmortem.ts`, `src/lib/memory/epcr.ts` | 01 |
+| 09 | `src/lib/memory/index.ts`, `src/lib/memory/decisions.ts`, `src/lib/memory/postmortem.ts`, `src/lib/memory/epcr.ts` | 01 |
 | 10 | `src/lib/events/**`, `app/api/events/route.ts` | 01 |
 | 11 | `app/api/tools/**`, `app/api/demo/**`, `app/api/state/**`, `app/api/counters/**` | 01 |
 | 12 | `worker/**` | 01 |
@@ -323,7 +324,7 @@ PHASE-01 is the only prerequisite. Everything after it runs in parallel; the mil
 | M2 Brain | 07–09 | Three-collection fan-out, LangGraph with `interrupt()`, decision/postmortem/ePCR writers |
 | M3 Surface | 10–14 | Event bus + SSE, tool routes, change stream worker, ElevenLabs voice, judge dashboard |
 | M4 Stage | 15 | Two-call demo scripted; kill-and-resume rehearsed 3× |
-| M5 Cutover | 16 | All six ports flipped from fake to real; one smoke path through fire → brief → readback → decision → close |
+| M5 Cutover | 16 | All seven ports flipped from fake to real; one smoke path through fire → brief → readback → decision → close |
 
 ## Environment Variables
 
@@ -359,6 +360,7 @@ TRIGGER_MODE=changestream                # changestream | poll
 # --- Port modes: set to `fake` to build a phase in isolation ---
 EMBEDDINGS_MODE=real                     # real | fake
 RETRIEVAL_MODE=real
+MEMORY_MODE=real
 LLM_MODE=real
 EVENTS_MODE=real
 GRAPH_MODE=real

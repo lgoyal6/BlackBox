@@ -16,6 +16,10 @@ Implement `RetrievalPort` as a single Atlas aggregation pipeline that fans out a
 
 The second thing this phase carries is `signatureMatch`. That node is what makes this a memory project rather than a runbook lookup, and it is on the never-cut list.
 
+## Demo corpus scale (`contracts.md` §14)
+
+This retrieval layer is verified against the hackathon slice, not a warehouse. Atlas holds about **180 incidents**. `SEED_TARGET` is **40** templated postmortems (`SEED_DEFAULT_TEMPLATED = true`; LLM generation is opt-in). `decisions` stays empty until the live demo. Do not raise `kPerSource`, `limit`, or `numCandidates` as if there were millions of rows — the constants in §14 are the ceiling. A query that only returns hits against a 400-document LLM corpus is a bug against this project's actual data. `failureMemory` must still return failure remediations and upgraded postmortems from those forty seeded documents; `signatureMatch` must still be allowed to return `null` on an off-distribution query.
+
 ## Reference Files (read before implementing)
 
 - `.ralph/contracts.md` §6 — `Hit`, `SignatureMatch`, `ExcludedPath`, `ReclassPrior`, and the constants `SIGNATURE_MATCH_FLOOR`, `RRF_K`, `SOURCE_WEIGHTS`, `SPOKEN_WORD_CAP`. Do not redefine any of them.
