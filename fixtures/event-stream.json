@@ -44,6 +44,13 @@
   {
     "seq": 6,
     "incidentId": "2608130442",
+    "t": "2026-08-13T16:00:05.000Z",
+    "kind": "write",
+    "payload": { "collection": "timeline", "count": 1 }
+  },
+  {
+    "seq": 7,
+    "incidentId": "2608130442",
     "t": "2026-08-13T16:00:06.000Z",
     "kind": "retrieval",
     "payload": {
@@ -89,21 +96,28 @@
     }
   },
   {
-    "seq": 7,
+    "seq": 8,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:07.000Z",
+    "kind": "checkpoint",
+    "payload": { "count": 4 }
+  },
+  {
+    "seq": 9,
+    "incidentId": "2608130442",
+    "t": "2026-08-13T16:00:08.000Z",
     "kind": "node",
     "payload": { "node": "signature_match", "phase": "exit" }
   },
   {
-    "seq": 8,
+    "seq": 10,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:08.000Z",
+    "t": "2026-08-13T16:00:09.000Z",
     "kind": "node",
     "payload": { "node": "brief", "phase": "enter" }
   },
   {
-    "seq": 9,
+    "seq": 11,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:19.000Z",
     "kind": "voice",
@@ -114,42 +128,59 @@
     }
   },
   {
-    "seq": 10,
+    "seq": 12,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:20.000Z",
     "kind": "write",
-    "payload": { "collection": "timeline", "count": 1 }
+    "payload": { "collection": "timeline", "count": 8 }
   },
   {
-    "seq": 11,
+    "seq": 13,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:21.000Z",
     "kind": "node",
     "payload": { "node": "brief", "phase": "exit" }
   },
   {
-    "seq": 12,
+    "seq": 14,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:22.000Z",
     "kind": "node",
     "payload": { "node": "plan", "phase": "enter" }
   },
   {
-    "seq": 13,
+    "seq": 15,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:23.000Z",
     "kind": "checkpoint",
-    "payload": { "count": 8 }
+    "payload": { "count": 12 }
   },
   {
-    "seq": 14,
+    "seq": 16,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:00:24.000Z",
+    "kind": "write",
+    "payload": { "collection": "decisions", "count": 1 }
+  },
+  {
+    "seq": 17,
+    "incidentId": "2608130442",
+    "t": "2026-08-13T16:00:25.000Z",
     "kind": "node",
     "payload": { "node": "plan", "phase": "exit" }
   },
   {
-    "seq": 15,
+    "seq": 18,
+    "incidentId": "16974471",
+    "t": "2024-02-08T04:22:00.000Z",
+    "kind": "pcr",
+    "payload": {
+      "postmortemId": "pm-4471",
+      "preview": "We were dispatched for an unconscious patient in B3. The nearest facility was on diversion; eleven minutes lost."
+    }
+  },
+  {
+    "seq": 19,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:01:02.000Z",
     "kind": "voice",
@@ -160,21 +191,35 @@
     }
   },
   {
-    "seq": 16,
+    "seq": 20,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:01:03.000Z",
     "kind": "write",
-    "payload": { "collection": "timeline", "count": 12 }
+    "payload": { "collection": "timeline", "count": 18 }
   },
   {
-    "seq": 17,
+    "seq": 21,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:01:04.000Z",
     "kind": "write",
     "payload": { "collection": "decisions", "count": 3 }
   },
   {
-    "seq": 18,
+    "seq": 22,
+    "incidentId": "2608130442",
+    "t": "2026-08-13T16:01:05.000Z",
+    "kind": "checkpoint",
+    "payload": { "count": 18 }
+  },
+  {
+    "seq": 23,
+    "incidentId": "2608130442",
+    "t": "2026-08-13T16:01:30.000Z",
+    "kind": "write",
+    "payload": { "collection": "events", "count": 23 }
+  },
+  {
+    "seq": 24,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:10.000Z",
     "kind": "voice",
@@ -185,7 +230,7 @@
     }
   },
   {
-    "seq": 19,
+    "seq": 25,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:11.000Z",
     "kind": "decision",
@@ -197,35 +242,35 @@
     }
   },
   {
-    "seq": 20,
+    "seq": 26,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:12.000Z",
-    "kind": "write",
-    "payload": { "collection": "decisions", "count": 7 }
-  },
-  {
-    "seq": 21,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:02:13.000Z",
     "kind": "write",
     "payload": { "collection": "timeline", "count": 28 }
   },
   {
-    "seq": 22,
+    "seq": 27,
+    "incidentId": "2608130442",
+    "t": "2026-08-13T16:02:13.000Z",
+    "kind": "write",
+    "payload": { "collection": "decisions", "count": 6 }
+  },
+  {
+    "seq": 28,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:14.000Z",
     "kind": "checkpoint",
-    "payload": { "count": 22 }
+    "payload": { "count": 28 }
   },
   {
-    "seq": 23,
+    "seq": 29,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:15.000Z",
     "kind": "node",
     "payload": { "node": "readback_gate", "phase": "enter" }
   },
   {
-    "seq": 24,
+    "seq": 30,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:31.000Z",
     "kind": "voice",
@@ -236,7 +281,7 @@
     }
   },
   {
-    "seq": 25,
+    "seq": 31,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:32.000Z",
     "kind": "readback",
@@ -246,111 +291,66 @@
     }
   },
   {
-    "seq": 26,
+    "seq": 32,
     "incidentId": "2608130442",
     "t": "2026-08-13T16:02:33.000Z",
     "kind": "write",
-    "payload": { "collection": "timeline", "count": 34 }
-  },
-  {
-    "seq": 27,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:02:34.000Z",
-    "kind": "checkpoint",
-    "payload": { "count": 34 }
-  },
-  {
-    "seq": 28,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:25.000Z",
-    "kind": "write",
-    "payload": { "collection": "events", "count": 28 }
-  },
-  {
-    "seq": 29,
-    "incidentId": "16974471",
-    "t": "2024-02-08T04:22:00.000Z",
-    "kind": "pcr",
-    "payload": {
-      "postmortemId": "pm-4471",
-      "preview": "We were dispatched for an unconscious patient in B3. The nearest facility was on diversion; eleven minutes lost."
-    }
-  },
-  {
-    "seq": 30,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:30.000Z",
-    "kind": "node",
-    "payload": { "node": "execute_record", "phase": "enter" }
-  },
-  {
-    "seq": 31,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:31.000Z",
-    "kind": "node",
-    "payload": { "node": "execute_record", "phase": "exit" }
-  },
-  {
-    "seq": 32,
-    "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:32.000Z",
-    "kind": "node",
-    "payload": { "node": "verify", "phase": "enter" }
+    "payload": { "collection": "timeline", "count": 32 }
   },
   {
     "seq": 33,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:33.000Z",
-    "kind": "node",
-    "payload": { "node": "verify", "phase": "exit" }
+    "t": "2026-08-13T16:02:34.000Z",
+    "kind": "write",
+    "payload": { "collection": "decisions", "count": 7 }
   },
   {
     "seq": 34,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:34.000Z",
-    "kind": "node",
-    "payload": { "node": "record_decision", "phase": "enter" }
+    "t": "2026-08-13T16:02:35.000Z",
+    "kind": "write",
+    "payload": { "collection": "timeline", "count": 34 }
   },
   {
     "seq": 35,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:35.000Z",
-    "kind": "node",
-    "payload": { "node": "record_decision", "phase": "exit" }
+    "t": "2026-08-13T16:02:36.000Z",
+    "kind": "checkpoint",
+    "payload": { "count": 34 }
   },
   {
     "seq": 36,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:00:36.000Z",
+    "t": "2026-08-13T16:02:37.000Z",
     "kind": "write",
-    "payload": { "collection": "postmortems", "count": 0 }
+    "payload": { "collection": "events", "count": 36 }
   },
   {
     "seq": 37,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:20.000Z",
-    "kind": "checkpoint",
-    "payload": { "count": 18 }
+    "t": "2026-08-13T16:01:10.000Z",
+    "kind": "write",
+    "payload": { "collection": "runbooks", "count": 4 }
   },
   {
     "seq": 38,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:01:40.000Z",
+    "t": "2026-08-13T16:01:12.000Z",
     "kind": "write",
-    "payload": { "collection": "decisions", "count": 5 }
+    "payload": { "collection": "postmortems", "count": 6 }
   },
   {
     "seq": 39,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:02:00.000Z",
+    "t": "2026-08-13T16:01:14.000Z",
     "kind": "write",
-    "payload": { "collection": "timeline", "count": 30 }
+    "payload": { "collection": "remediations", "count": 2 }
   },
   {
     "seq": 40,
     "incidentId": "2608130442",
-    "t": "2026-08-13T16:02:35.000Z",
-    "kind": "node",
-    "payload": { "node": "await_input", "phase": "enter" }
+    "t": "2026-08-13T16:01:16.000Z",
+    "kind": "checkpoint",
+    "payload": { "count": 20 }
   }
 ]
