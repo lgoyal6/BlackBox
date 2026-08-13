@@ -33,6 +33,12 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 - PHASE-15 (Demo Orchestration and Rehearsal): PENDING
 - PHASE-16 (Fake-to-Real Cutover and End-to-End Smoke): PENDING  ← serial, after 02–15
 
+Workstreams (see `.ralph/workstreams.md`):
+- `ws/data` — PHASE-01–06
+- `ws/graph` — PHASE-07–09
+- `ws/runtime` — PHASE-10–13
+- `ws/demo` — PHASE-14–16
+
 ---
 
 ## Pre-Build Findings (already done — do not repeat this work)
