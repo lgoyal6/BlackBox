@@ -1,0 +1,1283 @@
+{
+  "incidents": [
+    {
+      "incidentId": "78844683",
+      "displayId": "4683",
+      "ref": "240101-4683",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K5",
+      "unit": "4V",
+      "family": "altered",
+      "responseSeconds": 926,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78845217",
+      "displayId": "5217",
+      "ref": "240101-5217",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q2",
+      "unit": "18J",
+      "family": "altered",
+      "responseSeconds": 611,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78845853",
+      "displayId": "5853",
+      "ref": "240101-5853",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B2",
+      "unit": "14V",
+      "family": "altered",
+      "responseSeconds": 236,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78846020",
+      "displayId": "6020",
+      "ref": "240101-6020",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M9",
+      "unit": "21G",
+      "family": "altered",
+      "responseSeconds": 948,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78848276",
+      "displayId": "8276",
+      "ref": "240101-8276",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q6",
+      "unit": "37A",
+      "family": "altered",
+      "responseSeconds": 278,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78850193",
+      "displayId": "0193",
+      "ref": "240102-0193",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B4",
+      "unit": "34T",
+      "family": "altered",
+      "responseSeconds": 304,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78850194",
+      "displayId": "0194",
+      "ref": "240102-0194",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K1",
+      "unit": "35U",
+      "family": "altered",
+      "responseSeconds": 430,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78850907",
+      "displayId": "0907",
+      "ref": "240102-0907",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K2",
+      "unit": "28F",
+      "family": "altered",
+      "responseSeconds": 669,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78851722",
+      "displayId": "1722",
+      "ref": "240102-1722",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B5",
+      "unit": "3O",
+      "family": "altered",
+      "responseSeconds": 1298,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78852412",
+      "displayId": "2412",
+      "ref": "240102-2412",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M8",
+      "unit": "13C",
+      "family": "altered",
+      "responseSeconds": 221,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78852863",
+      "displayId": "2863",
+      "ref": "240102-2863",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M2",
+      "unit": "24L",
+      "family": "altered",
+      "responseSeconds": 199,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78853561",
+      "displayId": "3561",
+      "ref": "240102-3561",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B1",
+      "unit": "2H",
+      "family": "altered",
+      "responseSeconds": 796,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78854563",
+      "displayId": "4563",
+      "ref": "240102-4563",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "RICHMOND / STATEN ISLAND",
+      "dispatchArea": "S2",
+      "unit": "4V",
+      "family": "altered",
+      "responseSeconds": 215,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78855964",
+      "displayId": "5964",
+      "ref": "240103-5964",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K1",
+      "unit": "5S",
+      "family": "altered",
+      "responseSeconds": 338,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78857026",
+      "displayId": "7026",
+      "ref": "240103-7026",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q7",
+      "unit": "27O",
+      "family": "altered",
+      "responseSeconds": 562,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78843534",
+      "displayId": "3534",
+      "ref": "240101-3534",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BRONX",
+      "dispatchArea": "B5",
+      "unit": "15Q",
+      "family": "general",
+      "responseSeconds": 894,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78844185",
+      "displayId": "4185",
+      "ref": "240101-4185",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M4",
+      "unit": "26R",
+      "family": "general",
+      "responseSeconds": 1557,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78844929",
+      "displayId": "4929",
+      "ref": "240101-4929",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BRONX",
+      "dispatchArea": "B1",
+      "unit": "10H",
+      "family": "general",
+      "responseSeconds": 1875,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78845069",
+      "displayId": "5069",
+      "ref": "240101-5069",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BRONX",
+      "dispatchArea": "B5",
+      "unit": "30R",
+      "family": "general",
+      "responseSeconds": 8783,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78846913",
+      "displayId": "6913",
+      "ref": "240101-6913",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BRONX",
+      "dispatchArea": "B1",
+      "unit": "34P",
+      "family": "general",
+      "responseSeconds": 337,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78849278",
+      "displayId": "9278",
+      "ref": "240101-9278",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "QUEENS",
+      "dispatchArea": "Q3",
+      "unit": "39O",
+      "family": "general",
+      "responseSeconds": 675,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78851057",
+      "displayId": "1057",
+      "ref": "240102-1057",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M3",
+      "unit": "18Z",
+      "family": "general",
+      "responseSeconds": 259,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78851209",
+      "displayId": "1209",
+      "ref": "240102-1209",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BRONX",
+      "dispatchArea": "B1",
+      "unit": "10V",
+      "family": "general",
+      "responseSeconds": 709,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78851529",
+      "displayId": "1529",
+      "ref": "240102-1529",
+      "initialCallType": "SICK",
+      "initialLabel": "general illness",
+      "finalCallType": "CARD",
+      "finalLabel": "cardiac condition",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K2",
+      "unit": "10D",
+      "family": "general",
+      "responseSeconds": 350,
+      "severityDelta": 3,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": true
+    },
+    {
+      "incidentId": "78845102",
+      "displayId": "5102",
+      "ref": "240101-5102",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K6",
+      "unit": "23Y",
+      "family": "altered",
+      "responseSeconds": 454,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78845123",
+      "displayId": "5123",
+      "ref": "240101-5123",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K1",
+      "unit": "4T",
+      "family": "altered",
+      "responseSeconds": 302,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78845130",
+      "displayId": "5130",
+      "ref": "240101-5130",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q6",
+      "unit": "11A",
+      "family": "altered",
+      "responseSeconds": 691,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78845341",
+      "displayId": "5341",
+      "ref": "240101-5341",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B5",
+      "unit": "22D",
+      "family": "altered",
+      "responseSeconds": 482,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78845440",
+      "displayId": "5440",
+      "ref": "240101-5440",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q7",
+      "unit": "1Y",
+      "family": "altered",
+      "responseSeconds": 432,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78846308",
+      "displayId": "6308",
+      "ref": "240101-6308",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M9",
+      "unit": "29I",
+      "family": "altered",
+      "responseSeconds": 334,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78846442",
+      "displayId": "6442",
+      "ref": "240101-6442",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M5",
+      "unit": "3M",
+      "family": "altered",
+      "responseSeconds": 316,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78846473",
+      "displayId": "6473",
+      "ref": "240101-6473",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q7",
+      "unit": "34R",
+      "family": "altered",
+      "responseSeconds": 483,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78846478",
+      "displayId": "6478",
+      "ref": "240101-6478",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q7",
+      "unit": "39W",
+      "family": "altered",
+      "responseSeconds": 290,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78846701",
+      "displayId": "6701",
+      "ref": "240101-6701",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q3",
+      "unit": "22L",
+      "family": "altered",
+      "responseSeconds": 293,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78847085",
+      "displayId": "7085",
+      "ref": "240101-7085",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "QUEENS",
+      "dispatchArea": "Q2",
+      "unit": "6F",
+      "family": "altered",
+      "responseSeconds": 207,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78847741",
+      "displayId": "7741",
+      "ref": "240101-7741",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K5",
+      "unit": "22L",
+      "family": "altered",
+      "responseSeconds": 413,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78847838",
+      "displayId": "7838",
+      "ref": "240101-7838",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BROOKLYN",
+      "dispatchArea": "K4",
+      "unit": "39E",
+      "family": "altered",
+      "responseSeconds": 384,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78848473",
+      "displayId": "8473",
+      "ref": "240101-8473",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B5",
+      "unit": "34P",
+      "family": "altered",
+      "responseSeconds": 353,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78848536",
+      "displayId": "8536",
+      "ref": "240101-8536",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "BRONX",
+      "dispatchArea": "B2",
+      "unit": "17A",
+      "family": "altered",
+      "responseSeconds": 485,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    },
+    {
+      "incidentId": "78848896",
+      "displayId": "8896",
+      "ref": "240101-8896",
+      "initialCallType": "UNC",
+      "initialLabel": "unconscious or unresponsive",
+      "finalCallType": "ARREST",
+      "finalLabel": "cardiac arrest",
+      "borough": "MANHATTAN",
+      "dispatchArea": "M9",
+      "unit": "17W",
+      "family": "altered",
+      "responseSeconds": 267,
+      "severityDelta": 1,
+      "reopened": false,
+      "reclassified": true,
+      "hasReport": false
+    }
+  ],
+  "reports": {
+    "78843534": {
+      "incidentId": "78843534",
+      "displayId": "3534",
+      "narrative": "Overnight in B5 we were dispatched for general illness on incident 3534. The patient was pale and diaphoretic, and we treated it as occult cardiac rather than a routine sick call. The nearest house was on diversion; rerouting cost unmeasured minutes against the family median, and we spent those minutes on the extra ride to a cardiac facility. That trade was the routing decision, not a guess about treatment. Handling this as general illness is the path we would not repeat. Closed as CARD after a SICK dispatch.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "Route occult cardiac to a cardiac facility, not the closest door.",
+        "Diversion status belongs in the brief before the wheels roll."
+      ],
+      "origin": "curated"
+    },
+    "78844185": {
+      "incidentId": "78844185",
+      "displayId": "4185",
+      "narrative": "We were dispatched for a general illness in MANHATTAN, M4. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78844683": {
+      "incidentId": "78844683",
+      "displayId": "4683",
+      "narrative": "We were dispatched for an unconscious or unresponsive in K5 on incident 4683 and found him pulseless on arrival. Compressions started on the floor before we ever moved the stretcher. The nearest receiving facility was on diversion; confirming that and rerouting cost unmeasured minutes against the family median. That delay is the number we should have prevented by asking about receiving status before we committed to a door. We treated the scene as the dispatch type at first and corrected once there was no pulse. Handling this as unconscious or unresponsive is the path we would not take again.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "Confirm receiving facility status before committing to a destination.",
+        "Do not let a diversion cost double-digit minutes."
+      ],
+      "origin": "curated"
+    },
+    "78844929": {
+      "incidentId": "78844929",
+      "displayId": "4929",
+      "narrative": "We were dispatched for a general illness in BRONX, B1. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78845069": {
+      "incidentId": "78845069",
+      "displayId": "5069",
+      "narrative": "We were dispatched for a general illness in BRONX, B5. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78845217": {
+      "incidentId": "78845217",
+      "displayId": "5217",
+      "narrative": "We were dispatched for an unconscious or unresponsive in QUEENS, Q2. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78845853": {
+      "incidentId": "78845853",
+      "displayId": "5853",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BRONX, B2. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78846020": {
+      "incidentId": "78846020",
+      "displayId": "6020",
+      "narrative": "We were dispatched for an unconscious or unresponsive in MANHATTAN, M9. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78846913": {
+      "incidentId": "78846913",
+      "displayId": "6913",
+      "narrative": "We were dispatched for a general illness in BRONX, B1. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78848276": {
+      "incidentId": "78848276",
+      "displayId": "8276",
+      "narrative": "We were dispatched for an unconscious or unresponsive in QUEENS, Q6. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78849278": {
+      "incidentId": "78849278",
+      "displayId": "9278",
+      "narrative": "We were dispatched for a general illness in QUEENS, Q3. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78850193": {
+      "incidentId": "78850193",
+      "displayId": "0193",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BRONX, B4. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78850194": {
+      "incidentId": "78850194",
+      "displayId": "0194",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BROOKLYN, K1. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78850907": {
+      "incidentId": "78850907",
+      "displayId": "0907",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BROOKLYN, K2. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78851057": {
+      "incidentId": "78851057",
+      "displayId": "1057",
+      "narrative": "We were dispatched for a general illness in MANHATTAN, M3. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78851209": {
+      "incidentId": "78851209",
+      "displayId": "1209",
+      "narrative": "We were dispatched for a general illness in BRONX, B1. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78851529": {
+      "incidentId": "78851529",
+      "displayId": "1529",
+      "narrative": "We were dispatched for a general illness in BROOKLYN, K2. It was closed as a cardiac condition. The severity was upgraded to level 3. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine general illness once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as general illness is the path we would not repeat.",
+      "whatChanged": "SICK → CARD",
+      "lessons": [
+        "A general illness dispatch can close as cardiac condition.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78851722": {
+      "incidentId": "78851722",
+      "displayId": "1722",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BRONX, B5. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78852412": {
+      "incidentId": "78852412",
+      "displayId": "2412",
+      "narrative": "We were dispatched for an unconscious or unresponsive in MANHATTAN, M8. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78852863": {
+      "incidentId": "78852863",
+      "displayId": "2863",
+      "narrative": "We were dispatched for an unconscious or unresponsive in MANHATTAN, M2. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78853561": {
+      "incidentId": "78853561",
+      "displayId": "3561",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BRONX, B1. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78854563": {
+      "incidentId": "78854563",
+      "displayId": "4563",
+      "narrative": "We were dispatched for an unconscious or unresponsive in RICHMOND / STATEN ISLAND, S2. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78855964": {
+      "incidentId": "78855964",
+      "displayId": "5964",
+      "narrative": "We were dispatched for an unconscious or unresponsive in BROOKLYN, K1. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    },
+    "78857026": {
+      "incidentId": "78857026",
+      "displayId": "7026",
+      "narrative": "We were dispatched for an unconscious or unresponsive in QUEENS, Q7. It was closed as a cardiac arrest. The severity was upgraded to level 1. The tell that should have flipped the read sooner was the mismatch between the dispatch label and what we found on arrival — the scene did not match a routine unconscious or unresponsive once we were on the floor. We treated it as the dispatched type at first, then corrected once the presenting picture was clear. Handling this as unconscious or unresponsive is the path we would not repeat.",
+      "whatChanged": "UNC → ARREST",
+      "lessons": [
+        "A unconscious or unresponsive dispatch can close as cardiac arrest.",
+        "The first read understated severity."
+      ],
+      "origin": "seeded"
+    }
+  },
+  "remediations": {
+    "78843534": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      },
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "curated"
+      }
+    ],
+    "78844185": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78844683": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      },
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "curated"
+      }
+    ],
+    "78844929": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78845069": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78845217": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78845853": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78846020": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78846913": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78848276": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78849278": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78850193": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78850194": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78850907": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78851057": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78851209": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78851529": [
+      {
+        "action": "handled as general illness",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 6 to 3"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78851722": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78852412": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78852863": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78853561": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78854563": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78855964": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ],
+    "78857026": [
+      {
+        "action": "handled as unconscious or unresponsive",
+        "outcome": "failure",
+        "costMinutes": null,
+        "sideEffects": [
+          "undertriaged: severity 2 to 1"
+        ],
+        "origin": "seeded"
+      }
+    ]
+  },
+  "stats": {
+    "incidents": 178,
+    "reclassified": 158,
+    "undertriaged": 29,
+    "reports": 44,
+    "failures": 43,
+    "runbookSections": 22
+  },
+  "error": null
+}

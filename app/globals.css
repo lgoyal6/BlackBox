@@ -1,1 +1,76 @@
 @import "tailwindcss";
+
+/* PHASE-01 installed Tailwind v4, which is CSS-first. Tokens live here under @theme
+   rather than in a tailwind.config.ts; each --color-* generates text-/bg-/border- utilities. */
+@theme {
+  --color-bb-bg: #0a0a0b;
+  --color-bb-surface: #101013;
+  --color-bb-surface-2: #17171b;
+  --color-bb-border: #1f1f23;
+  --color-bb-border-strong: #2a2a30;
+
+  --color-bb-text: #f4f4f5;
+  --color-bb-muted: #8a8a93;
+  --color-bb-muted-bright: #a1a1aa;
+
+  /* Red is BlackBox's own voice: the agent, the capture, the brand. */
+  --color-bb-red: #ff4d4f;
+  --color-bb-red-label: #ff8a8c;
+  --color-bb-red-text: #ffd7d8;
+  --color-bb-red-surface: #2a0e0f;
+  --color-bb-red-pill: #7f1d1d;
+  --color-bb-red-pill-text: #fee2e2;
+
+  /* Amber is spent on exactly one thing: the readback gate. */
+  --color-bb-amber: #fbbf24;
+  --color-bb-amber-surface: #3b2a08;
+  --color-bb-amber-border: #7c5410;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "SF Mono", Menlo,
+    Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+/* Tabular figures everywhere a number changes in place, so the layout never twitches. */
+.bb-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bb-border-strong) transparent;
+}
+.bb-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.bb-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bb-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-bb-border-strong);
+  border-radius: 3px;
+}
+
+/* The checkpoint counter is the pixel the presenter points at before killing the process.
+   Red because a checkpoint increment is BlackBox capturing something. */
+@keyframes bb-checkpoint-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.75);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(255, 77, 79, 0);
+  }
+}
+.bb-checkpoint-flash {
+  animation: bb-checkpoint-flash 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-checkpoint-flash {
+    animation: none;
+  }
+}
