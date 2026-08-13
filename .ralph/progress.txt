@@ -25,10 +25,10 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 - PHASE-07 (Three-Collection Fan-Out Retrieval): PENDING
 - PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): PENDING
 - PHASE-09 (Decision Capture, Postmortem, ePCR Draft): PENDING
-- PHASE-10 (Event Bus and SSE Stream): PENDING
-- PHASE-11 (Tool, Demo, and State API Routes): PENDING
-- PHASE-12 (Change Stream Worker): PENDING
-- PHASE-13 (ElevenLabs Voice Layer): PENDING
+- PHASE-10 (Event Bus and SSE Stream): COMPLETE
+- PHASE-11 (Tool, Demo, and State API Routes): COMPLETE
+- PHASE-12 (Change Stream Worker): COMPLETE
+- PHASE-13 (ElevenLabs Voice Layer): COMPLETE
 - PHASE-14 (Judge-Facing Dashboard): PENDING
 - PHASE-15 (Demo Orchestration and Rehearsal): PENDING
 - PHASE-16 (Fake-to-Real Cutover and End-to-End Smoke): PENDING  ← serial, after 02–15
@@ -94,3 +94,105 @@ _Append one entry per completed phase, using this shape:_
 
 _Anything under Issues Found & Fixed that another phase could hit belongs in `agents.md` under
 Known Gotchas as well. That file is the only way parallel agents learn from each other._
+
+---
+
+## Phase 10 — Event Bus and SSE Stream — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-019, US-020
+**Files Created:** `src/lib/events/seq.ts`, `src/lib/events/index.ts`, `src/lib/events/watch.ts`, `app/api/events/route.ts`
+**Files Modified:** None
+**Ports Implemented:** EventsPort at `src/lib/events/index.ts`
+**Fakes Used During Build:** EMBEDDINGS/RETRIEVAL/MEMORY/LLM/GRAPH/VOICE=fake, EVENTS_MODE=real
+**Key Decisions:**
+- `nextSeq` is a single `$inc` `findOneAndUpdate` on `_watch_state`, namespaced `seq:*`. Verified gap-free and duplicate-free under 200 concurrent emits.
+- SSE route opens the change stream before the replay `find()` and dedupes by `_id`, so nothing is lost in the snapshot/subscribe window.
+- Replay boundary is SSE comments (`: replay <n>` / `: live`), not a synthetic event kind, because the §8 union is closed.
+- `watchEvents` waits 250 ms for an immediate stream error so a non-replica-set target rejects rather than hanging; the route then degrades to `SSE POLL FALLBACK`.
+**Issues Found & Fixed:**
+- `import { recent } from "@/lib/events"` does not compile: that specifier is the ambient declaration in `real-ports.d.ts`, which exports only the default. Import `@/lib/events/index` for named exports. Logged in `agents.md`.
+**Contract Changes:** None
+**Verification Results:**
+- typecheck clean, `npm run build` succeeds.
+- 200 concurrent emits -> 200 rows, 200 unique seq, min 1 max 200; all `_id` are strings.
+- `emit` resolves and logs `EVENT EMIT FAILED` with an unreachable `MONGODB_URI`, exit 0.
+- 40 fixture events replayed as `: replay 40` + 40 `data:` frames, all parsing to a §8 `kind`; `: live` marker; `: ping` within 15 s; a cross-process `tsx` insert appeared as frame 41 within 2 s.
+- All four response headers exact. `?incidentId=` (empty) returns 200 and warns.
+- 5 connect/disconnect cycles -> last `[events] change stream closed (open=0)`.
+**Next:** PHASE-14 renders these frames; PHASE-11 and PHASE-12 can call `emit` on latency-budgeted paths.
+
+## Phase 11 — Tool, Demo, and State API Routes — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-021, US-022
+**Files Created:** `app/api/tools/[tool]/route.ts`, `app/api/tools/_lib/{auth,readback,counts,decision-write,handlers}.ts`, `app/api/demo/{fire,close,reset}/route.ts`, `app/api/demo/_lib/clone.ts`, `app/api/state/[incidentId]/route.ts`, `app/api/counters/route.ts`
+**Files Modified:** None
+**Ports Implemented:** None
+**Fakes Used During Build:** GRAPH/RETRIEVAL/MEMORY/LLM/EMBEDDINGS/VOICE=fake, EVENTS_MODE=real
+**Key Decisions:**
+- Every `decisions` and `postmortems` write goes through `MemoryPort`; nothing here inserts or embeds. `_lib/counts.ts` is read-only and only fills `write.payload.count`.
+- Added `_lib/counts.ts` beyond the spec's file table (inside the owned tree) so both emit sites share one absolute-count helper.
+- `clone.ts` builds the live document field by field rather than spreading the source, so `_groundTruth` cannot carry over.
+- The caller-supplied `incidentId` on `fire` selects a historical source row when one matches, and otherwise becomes the new live id — the reading that honours both sentences in the spec.
+**Issues Found & Fixed:**
+- The spec's older readback template (`Confirming ... Say confirm or correct me.`) conflicted with PHASE-13's pinned assertion. Resolved to `Confirm: {dose} of {drug}, {route}. Say confirm.`, which the refreshed spec now also states.
+**Contract Changes:** None — the §10 Zod schemas already exist as `RecallMemoryReq` etc. in `src/lib/contracts/api.ts`.
+**Verification Results:**
+- typecheck clean, build succeeds; all nine route files export `runtime = "nodejs"`; both dynamic routes await `params`.
+- 401 on missing and wrong secret, 404 unknown tool, 400 invalid JSON, 400 on `source: "nurse"`.
+- `propose_readback` 52 ms, returns `Confirm: 1 milligram of epinephrine, IV. Say confirm.`; `recall_memory` 22 ms; `get_protocol` 4 ms, prefixed `From NASEMSO,`; summary 14 words, every `hit.spoken` <= 40 words.
+- `record_decision` acked in 84 ms; the reason-bearing utterance produced exactly one `decision` event, the no-reason utterance produced none and logged `DECISION WRITE SKIPPED: empty rationale`.
+- `log_timeline` emitted `write` with `collection: "timeline"` and counts 1 then 2.
+- `close_call` returned a `postmortemId` and non-empty `pcrPreview` in 16 ms, and emitted `pcr` + `status` + `write`.
+- `fire` arrest and cardiac both cloned with no `_groundTruth`; `confirm_readback` moved the fake graph off `readback_gate` (`next: ["readback_gate"]` -> `[]`).
+- `reset` deleted 2 decisions, 1 live postmortem, 1 live remediation, 56 events, 1 checkpoint, 3 live incidents, and left 31 seeded/curated postmortems, 30 runbooks, 1 seeded remediation, 1 historical incident and all of `_watch_state` intact.
+**Next:** PHASE-13's agent points its seven tools here; PHASE-16's smoke drives this path.
+
+## Phase 12 — Change Stream Worker — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-023
+**Files Created:** `worker/index.ts`, `worker/state.ts`, `worker/trigger.ts`, `worker/watch.ts`, `worker/poll.ts`
+**Files Modified:** None
+**Ports Implemented:** None
+**Fakes Used During Build:** GRAPH=fake and the rest fake; EVENTS_MODE=real for assertions
+**Key Decisions:**
+- One `getDb().watch()` across `decisions`/`postmortems`/`remediations` rather than three cursors, so SIGINT closes one extra cursor.
+- `write.count` is `countDocuments({})` on `change.ns.coll`, never `1`.
+- `requireCollection` uses `listCollections` before watching, so a missing namespace exits 1 instead of hanging.
+**Issues Found & Fixed:**
+- The first resume drill looked like a failure; the worker was still alive because the SIGINT had gone to the `npx` wrapper rather than the node process. Re-run against the real PID, the drill passes.
+**Contract Changes:** None
+**Verification Results:**
+- First log line `[worker] trigger=changestream`; live insert -> `[worker] start <id>`; `isLive: false` insert -> no start.
+- Two `decisions` inserts produced `write` events with counts 1 then 2 (absolute, not `1`).
+- `watch:incidents` and `watch:writes` resume tokens persisted alongside PHASE-10's `seq:*` docs.
+- Insert made while the worker was stopped was processed on restart via `resumeAfter`.
+- `TRIGGER_MODE=poll` fired 1 s after the insert; `poll:incidents` watermark persisted.
+- Missing `incidents` collection logs `MISSING COLLECTION incidents` and exits 1.
+- One SIGINT closes both cursors and exits.
+**Next:** PHASE-11's `fire` inserts the live incident this watches; PHASE-08's real `GraphPort.start` replaces the fake.
+
+## Phase 13 — ElevenLabs Voice Layer — COMPLETE (browser transport not yet exercised)
+**Date:** 2026-08-13
+**Tasks:** US-024, US-025, US-026
+**Files Created:** `src/lib/voice/{prompt,tools,agent-config,index}.ts`, `app/api/voice/conversation-token/route.ts`, `app/api/voice/signed-url/route.ts`, `app/voice/page.tsx`, `scripts/setup-agent.ts`
+**Files Modified:** None
+**Ports Implemented:** VoicePort at `src/lib/voice/index.ts` (all three methods)
+**Fakes Used During Build:** LLM/EVENTS/EMBEDDINGS/RETRIEVAL/GRAPH/MEMORY=fake, VOICE_MODE=real
+**Key Decisions:**
+- API surface confirmed against the installed SDK types rather than memory; every confirmed field name is in `agents.md`.
+- `SERVER_TOOLS[].timeoutMs` keeps the spec's 2–3 s budgets and `buildAgentConfig` clamps to the platform's 5 s minimum for `responseTimeoutSecs`.
+- `speak` records rather than pushes: 2.63.0 exposes no server-side message injection. The brief is retrieved by a tool, so nothing depends on server-initiated speech.
+- `app/voice/page.tsx` wraps the console in `ConversationProvider` (required by `useConversation`) and passes only `conversationToken` + `connectionType: "webrtc"`.
+**Issues Found & Fixed:**
+- `extractRationale` returns `rationale: null` for all 8 fixtures under `LLM_MODE=fake`; the fake returns one canned paraphrase that the substring guard correctly rejects. See `agents.md` — this criterion needs `LLM_MODE=real`.
+**Contract Changes:** None
+**Verification Results:**
+- typecheck clean, build succeeds, `VoicePort` type assertion compiles with `speak`/`signedUrl`/`conversationToken`.
+- `VOICE_MODE=real` -> `voice()` returns this module, no `FAKE PORT` warning; same for `EVENTS_MODE=real`.
+- `--print-prompt` exits 0 with no network; the scope sentence appears exactly once; all seven sections present.
+- Both `composeReadback` copies return the pinned string exactly.
+- `extractRationale` returns a non-empty `actionChosen` for all 8 fixtures, never emits `protocolConflict`, and returns `null` when the fake invents a reason the utterance does not contain.
+- `--dry-run`: 7 tools, correct names and URLs, `X-BlackBox-Secret` on every one, `interruptionMode: "allow"`, `disableFirstMessageInterruptions: false`, `eleven_flash_v2_5`, parameter sets matching §10 exactly.
+- `setup-agent.ts` exits 1 on an empty or localhost `PUBLIC_BASE_URL`; `ELEVENLABS_API_KEY` appears nowhere under `app/voice/`.
+**Unverified (needs credentials and a tunnel):** live agent create/update idempotency, `conversation-token` and `signed-url` against a real key, `/voice` connect + mic level, barge-in, the `[tool]` ordering transcript check, and tunnel reachability.
+**Next:** run `npm run agent:setup` once `PUBLIC_BASE_URL` and `ELEVENLABS_API_KEY` are set, then write the returned id into `.env` as both `ELEVENLABS_AGENT_ID` and `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`.

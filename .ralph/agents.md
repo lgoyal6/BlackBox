@@ -89,6 +89,29 @@
 - **`fanOut`'s `callTypeFamily` filter does not apply to runbooks.** `RunbookDoc` has no such field. PHASE-07 must omit it from the runbooks `$unionWith` leg or the pipeline errors.
 - **`RunbookDoc.chunkIndex` is 0-based within its guideline.** A single-chunk guideline is always `0`. `(sectionTitle, chunkIndex)` is unique.
 
+### ws/runtime findings (PHASE-10–13, 2026-08-13)
+
+**ElevenLabs field names, confirmed against the installed `@elevenlabs/elevenlabs-js` 2.63.0 and `@elevenlabs/react` 1.12.0 types — nobody needs to re-research these.**
+
+- **Tools are their own registry.** `client.conversationalAi.tools.create({ toolConfig })` / `.update(toolId, {...})` / `.list()`, and the agent references them by `conversationConfig.agent.prompt.toolIds`. There is no inline tool array on the agent create payload worth using.
+- A webhook tool is `{ toolConfig: { type: "webhook", name, description, responseTimeoutSecs, interruptionMode, apiSchema: { url, method, requestHeaders, requestBodySchema } } }`. `requestBodySchema` is a plain `{ type: "object", required: [...], properties: { name: { type, description } } }`.
+- **`responseTimeoutSecs` must be between 5 and 300.** The 2–3 second budgets in PHASE-13's spec are below the platform minimum, so `SERVER_TOOLS[].timeoutMs` keeps the intended budget and `buildAgentConfig` clamps to 5 when building the payload. `close_call` is unaffected at 10.
+- Agent create: `agents.create({ name, tags, conversationConfig })`, update: `agents.update(agentId, config)`. Response carries `agentId`.
+- **Two credentials, two different SDK calls.** `conversations.getWebrtcToken({ agentId })` → `{ token, conversationId }` (WebRTC). `conversations.getSignedUrl({ agentId })` → `{ signedUrl }` (WebSocket). Not interchangeable.
+- **`startSession` takes `{ conversationToken, connectionType: "webrtc" }` and the SDK types `agentId` as `never` alongside a token** — do not also pass `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` there, it will not compile. The token identifies the agent.
+- **`useConversation()` must be rendered inside `<ConversationProvider>`** or it throws. Input level is `getInputVolume(): number`; status is `"disconnected" | "connecting" | "connected" | "error"`.
+- Lowest-latency TTS tier in this SDK version is **`eleven_flash_v2_5`**. Barge-in: `conversationConfig.agent.disableFirstMessageInterruptions: false` plus per-tool `interruptionMode: "allow"`.
+- **There is no server-side way to inject a message into a live conversation** in 2.63.0 — the `conversations` client is `getSignedUrl`, `getWebrtcToken`, and reads. So `VoicePort.speak` records (timeline append + `voice` event) and the brief is retrieved by a tool rather than pushed by the server. Nothing in the demo depends on server-initiated speech.
+
+**Other cross-phase notes:**
+
+- **`_watch_state` is shared and the sharing is deliberate.** PHASE-10 owns `seq:<incidentId>` / `seq:__global__`; PHASE-12 owns `watch:incidents`, `watch:writes`, `poll:incidents`. Verified coexisting. **Never `deleteMany({})` on it** — `/api/demo/reset` deliberately leaves it alone, which is why sequence counters never need resetting between rehearsals.
+- **`@/lib/events` resolves to the ambient declaration in `src/lib/real-ports.d.ts`, which exports only the default.** A named import (`import { recent } from "@/lib/events"`) does not compile. Import the concrete path — `@/lib/events/index` — when you need named exports. Same trap applies to `@/lib/retrieval`, `@/lib/memory`, `@/lib/graph`, `@/lib/voice`.
+- **The Mongo driver's collection generic needs an index signature, which an `interface` never gets implicitly.** `col<IncidentDoc>(INCIDENTS)` fails the `T extends Document` constraint, and `IncidentDoc & Document` breaks `$push` typing (`PushOperator` stops seeing `timeline` as an array). Use a mapped type: `type IncidentRecord = { [K in keyof IncidentDoc]: IncidentDoc[K] }`.
+- **`fakes/llm.json()` cannot satisfy PHASE-13's `fixtures/utterances.json` expectations.** It returns one canned rationale, `"family reports recent neck surgery"`, for any prompt matching `/family|because|says|reports/`. That string is not a verbatim span of any fixture utterance (fixture 1 says "family **says**"), so the mandated substring guard correctly discards it and every fixture extracts to `rationale: null` under `LLM_MODE=fake`. Five fixtures expect a non-null rationale, so **that criterion needs `LLM_MODE=real`.** Four of the five fixture rationales are paraphrases rather than spans, so they are semantic targets, not literal expectations. PHASE-11's `record_decision` path is unaffected: its verification utterance says "family reports", which the fake returns verbatim.
+- **Readback wording is locked to `Confirm: {dose} of {drug}, {route}. Say confirm.`** Both copies (`src/lib/voice/tools.ts`, `app/api/tools/_lib/readback.ts`) assert `composeReadback({ drug: "amiodarone", dose: "300 mg", route: "IV push" }) === "Confirm: 300 mg of amiodarone, IV push. Say confirm."` — verified identical.
+- **`recent()` orders by `t` then `seq`, so under genuinely concurrent emits the returned page can invert two adjacent `seq` values** whose timestamps landed out of order (observed once in a 200-parallel-emit test). Sequential emission — every real path — is strictly ordered. PHASE-14's per-incident gap detection should tolerate a one-position inversion rather than report a dropped event.
+
 ## Technical Decisions Log
 
 | Date | Decision | Rationale |
