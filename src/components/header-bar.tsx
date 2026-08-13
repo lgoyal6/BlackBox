@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { DOT, sentenceCase } from "./format";
-import { Pill, RecorderGlyph } from "./ui";
+import { Pill } from "./ui";
 import type { HeaderView } from "./view-state";
 
 export interface HeaderBarProps {
@@ -22,8 +22,8 @@ export function HeaderBar({ header, recording }: HeaderBarProps): ReactElement {
 
   return (
     <header className="flex items-center justify-between gap-4 py-[18px]">
+      {/* No recorder glyph here: the tab bar above already carries the BlackBox mark. */}
       <div className="flex min-w-0 items-start gap-3">
-        <RecorderGlyph className="mt-[3px] shrink-0 text-bb-red" />
         <div className="min-w-0">
           {/* Rendered as one string so the layout does not jump when the first status lands. */}
           <h1 className="truncate text-[20px] font-semibold text-bb-text">

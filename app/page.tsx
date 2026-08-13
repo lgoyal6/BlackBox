@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
-import { Dashboard } from "@/components/dashboard";
+import { Dashboard, type TabId } from "@/components/dashboard";
+import { loadIncidentBundle } from "@/components/incident-source";
 
 /**
  * Next.js 16 makes searchParams a Promise. Reading it synchronously is the first thing
@@ -8,7 +9,12 @@ import { Dashboard } from "@/components/dashboard";
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ incidentId?: string; mode?: string; replay?: string }>;
+  searchParams: Promise<{
+    incidentId?: string;
+    mode?: string;
+    replay?: string;
+    tab?: string;
+  }>;
 }): Promise<ReactElement> {
   const params = await searchParams;
 
@@ -24,11 +30,15 @@ export default async function Page({
           ? "fixture"
           : "real";
 
+  const initialTab: TabId = params.tab === "corpus" ? "corpus" : "live";
+
   return (
     <Dashboard
       incidentId={params.incidentId ?? null}
       mode={mode}
       replay={params.replay === "1"}
+      bundle={loadIncidentBundle()}
+      initialTab={initialTab}
     />
   );
 }
