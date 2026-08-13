@@ -161,6 +161,12 @@ export async function ensureCollections(): Promise<CollectionReport[]> {
   const existing = await collectionNames();
   const reports: CollectionReport[] = [];
   for (const name of MANAGED_COLLECTIONS) {
+    // decisions is created by applyValidators so the $jsonSchema is set at
+    // createCollection time. Atlas readWrite cannot collMod.
+    if (name === DECISIONS) {
+      reports.push({ name, created: false });
+      continue;
+    }
     if (existing.has(name)) {
       reports.push({ name, created: false });
       continue;

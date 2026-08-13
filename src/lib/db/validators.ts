@@ -1,6 +1,6 @@
 import type { CollectionInfo, Document } from "mongodb";
 import { DECISIONS } from "@/lib/contracts";
-import { getDb } from "@/lib/db/client";
+import { col, getDb } from "@/lib/db/client";
 
 /** $jsonSchema validator enforcing Critical Rule 4 at the database level. */
 export const DECISIONS_VALIDATOR: Document = {
@@ -56,11 +56,31 @@ export async function applyValidators(): Promise<ValidatorReport[]> {
     return [{ collection: DECISIONS, action: "unchanged" }];
   }
 
-  await db.command({
-    collMod: DECISIONS,
-    validator: DECISIONS_VALIDATOR,
-    validationAction: VALIDATION_ACTION,
-    validationLevel: VALIDATION_LEVEL,
-  });
+  const count = await col(DECISIONS).countDocuments();
+  if (count === 0) {
+    // Atlas readWrite can dropCollection + createCollection, but not collMod.
+    await db.dropCollection(DECISIONS);
+    await db.createCollection(DECISIONS, {
+      validator: DECISIONS_VALIDATOR,
+      validationAction: VALIDATION_ACTION,
+      validationLevel: VALIDATION_LEVEL,
+    });
+    return [{ collection: DECISIONS, action: "created" }];
+  }
+
+  try {
+    await db.command({
+      collMod: DECISIONS,
+      validator: DECISIONS_VALIDATOR,
+      validationAction: VALIDATION_ACTION,
+      validationLevel: VALIDATION_LEVEL,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot apply the decisions validator: collMod was denied and ${DECISIONS} has ${count} documents. ` +
+        `Grant collMod (dbAdmin) or empty the collection. ${message}`,
+    );
+  }
   return [{ collection: DECISIONS, action: "collmod" }];
 }
