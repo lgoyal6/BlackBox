@@ -140,7 +140,9 @@ async function main(): Promise<void> {
   console.log("\nverify-retrieval: PASS");
 }
 
-main().catch((err) => {
-  console.error("verify-retrieval: FAIL —", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("verify-retrieval: FAIL —", err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

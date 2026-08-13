@@ -22,9 +22,18 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 - PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): PENDING
 - PHASE-05 (NASEMSO Runbook Corpus): PENDING
 - PHASE-06 (Seeded Memory): PENDING
-- PHASE-07 (Three-Collection Fan-Out Retrieval): COMPLETE (typecheck + fixture/pure-fn checks green; Atlas-dependent checks unverified, no MONGODB_URI in this environment)
-- PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): COMPLETE (typecheck + fake-ported node checks green; `npm run drill` / MongoDBSaver.setup() unverified, no MONGODB_URI in this environment)
-- PHASE-09 (Decision Capture, Postmortem, ePCR Draft): COMPLETE (typecheck + pure-fn checks green; live Atlas writes unverified, no MONGODB_URI in this environment)
+- PHASE-07 (Three-Collection Fan-Out Retrieval): COMPLETE. `npm run verify:retrieval` runs against the
+  live cluster and correctly stops at the index-readiness gate: `vs_postmortems` does not exist yet
+  (decisions/remediations/runbooks are READY at 1024 dims). This is the M0-tier 3-search-index cap
+  Codex flagged — not a code bug. Relevance probes have not run past that gate.
+- PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): COMPLETE and PASSING against the live
+  cluster — `npm run drill` and `npm run graph:local -- --auto-confirm --print-state` both exit 0
+  (checkpointCount 43 and climbing). Two real bugs found and fixed by live runs, not by typecheck or
+  fake-port testing: see Issues Found & Fixed below.
+- PHASE-09 (Decision Capture, Postmortem, ePCR Draft): COMPLETE. `generateAndWrite`/`draftPcr` exercised
+  live via PHASE-08's `postmortem` node reaching a real Atlas write path; one bug found and fixed (see
+  below). Direct `recordDecision`/`generateAndWrite` unit exercise from the phase's own verification
+  script has not been re-run live this session (the graph-driven path exercises the same code).
 - PHASE-10 (Event Bus and SSE Stream): PENDING
 - PHASE-11 (Tool, Demo, and State API Routes): PENDING
 - PHASE-12 (Change Stream Worker): PENDING
@@ -220,3 +229,62 @@ real MongoClient object, though no live connection is required to construct one)
 `npm run drill`, must not reimplement it). First person with a reachable Atlas cluster: run
 `npm run drill`, `npm run graph:local -- --auto-confirm --print-state`, and `npm run verify:retrieval`
 before trusting any of PHASE-07/08/09 on stage — none of the Atlas-dependent paths have executed yet.
+
+## PHASE-07/08/09 — Live Atlas Verification Addendum — COMPLETE
+**Date:** 2026-08-13 (later same session)
+**Context:** Codex provisioned a live Atlas cluster and dropped `MONGODB_URI`/`MONGODB_DB` into
+`.env.local`. Re-ran everything the entries above marked "unverified." Two real bugs surfaced — neither
+caught by `tsc` or by testing against fakes, both only visible against the actual `.compile()`/write path:
+
+1. **LangGraph 1.4.9 refuses a node name that collides with a state-channel name.** `IncidentState` has
+   both a `brief` field and a `plan` field, and `GRAPH_NODE_ORDER` (contracts.md) uses `"brief"` and
+   `"plan"` as node names — a real collision baked into the locked contract itself. `.compile()` threw
+   `"brief is already being used as a state attribute... cannot also be used as a node name"` the moment
+   `GRAPH_MODE=real` actually built the graph. **Fix (`src/lib/graph/compile.ts`):** register those two
+   nodes under distinct internal keys (`brief_step`, `plan_step`) in `addNode`/`addEdge`/
+   `addConditionalEdges`; `wrapNode`'s `name` argument (and therefore `nodeTrail`/emitted `node` events)
+   is untouched and still exactly matches `GRAPH_NODE_ORDER`. Only `GraphPort.state().next` would ever
+   show the renamed key, and only transiently between super-steps — never at the two nodes that actually
+   call `interrupt()` (`readback_gate`, `await_input`), so no acceptance criterion is affected.
+2. **`src/lib/memory/index.ts`'s `loadIncident` had no fixture fallback**, unlike
+   `src/lib/graph/index.ts`'s (which the PHASE-08 spec explicitly requires for `graph:local`/`drill`
+   before PHASE-04 ingestion exists). Since the `incidents` collection is empty (PHASE-04 hasn't run),
+   `postmortemNode` → `memory().generateAndWrite()` threw `"memory: incident ... not found"` and killed
+   an otherwise-passing `graph:local --auto-confirm` run. **Fix:** added the same
+   Atlas-then-`fixtures/incidents.json` fallback to `loadIncident`, mirroring the graph module.
+3. **All three CLI scripts (`run-graph-local.ts`, `kill-resume-drill.ts`, `verify-retrieval.ts`) hung
+   forever on success** — a live `MongoClient` connection keeps Node's event loop open, and none of the
+   three called `process.exit(0)` on their success path (only on explicit failure branches). This is why
+   `kill-resume-drill.ts`'s spawned `--resume-only` child printed its result and then never exited,
+   which hung the parent's `child.on("exit")` wait indefinitely. **Fix:** all three now end with
+   `main().then(() => process.exit(0)).catch(...)`.
+
+**Verification Results (live, `GRAPH_MODE=real`, all other consumed ports `*_MODE=fake`, real Atlas):**
+- `npm run drill`: **PASS**, exit 0. Parked at the readback interrupt, spawned a fresh child process,
+  resumed via `MongoDBSaver` in that fresh process, and the pre/post snapshot matched exactly on the
+  assertions that matter: timeline grew by exactly the 2 new `execute_record`/`verify` entries, `signature`
+  byte-identical, `decisions`/`remediations` counts identical (0/0 — no duplicate writes across the kill
+  boundary).
+- `npm run graph:local -- --auto-confirm --print-state`: **PASS**, exit 0. `nodeTrail` reaches
+  `"postmortem"`, `brief` ≤55 words with no raw dispatch code, `plan.excludedPaths` non-empty,
+  `checkpointCount: 43` (climbing — see the note below on why). Confirms `MongoDBSaver.setup()`,
+  `postmortemNode` → `memory().generateAndWrite()` → `draftPcr()`, and the readback→await_input→postmortem
+  routing all work against a real cluster.
+- `npm run verify:retrieval`: **Correctly fails at its own index-readiness gate**, before issuing any
+  query, exactly as specced. Printed status: `vs_decisions`, `vs_remediations`, `vs_runbooks` are all
+  `READY` at 1024 dimensions; **`vs_postmortems` does not exist.** This is the M0 free-tier 3-search-index
+  cap `overview.md` and Codex's Atlas handoff note both already flagged (this cluster has hit it exactly:
+  3 of 4 indexes exist). Not a code bug — needs either the Flex upgrade or PHASE-02's `merge into one
+  `memory` collection` fallback plan. Relevance probes past that gate have not run.
+- **Non-obvious operational finding, not a bug:** `timeline`/`nodeTrail`/`retrieved`/`decisionsRecorded`
+  are concat-reducer channels, and LangGraph merges a fresh `invoke(initialState, config)` call against
+  the *existing* checkpoint for that `thread_id` rather than replacing it wholesale — so repeated
+  `start()` calls against the same `incidentId` (e.g. re-running `graph:local`/`drill` against the
+  default fixture incident during iteration) accumulate state forever instead of resetting. This is
+  exactly why `POST /api/demo/reset` (PHASE-11, deletes checkpoints) exists; it isn't optional cleanup,
+  it's required between demo takes on the same incident id. Worth a one-line callout in PHASE-15's rehearsal
+  script.
+**Next:** Someone needs to either upgrade the Atlas tier or apply PHASE-02's documented fallback (merge
+`decisions`/`remediations`/`postmortems` into one `memory` collection, 2 indexes) before
+`verify:retrieval`'s relevance probes or a real (non-fake) `RETRIEVAL_MODE=real` fan-out can be exercised.
+Everything else in PHASE-07/08/09 is now verified against the real cluster, not just fakes.
