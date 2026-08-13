@@ -52,3 +52,20 @@ Re-runs skip existing indexes and finish in a few seconds. Flags: `--skip-wait` 
 | Before pitch | `npm run preflight` then `npm run smoke` | Fail closed if anything is still on a fake port |
 
 Port isolation while a phase is in progress: set `EMBEDDINGS_MODE=fake` (and the other `*_MODE` vars) in `.env.local`. The registry logs `FAKE PORT` when it falls back.
+
+## Flip runbooks to real embeddings
+
+The NASEMSO chunker is done (183 chunks, cached under gitignored `data/`). Do **not** set every `*_MODE=real` until PHASE-16. Flip **only** `EMBEDDINGS_MODE` when all three are true:
+
+1. `.env.local` has `MONGODB_URI` on a **Flex or dedicated** cluster (M0 cannot hold 4 vector indexes)
+2. `VOYAGE_API_KEY` is set, with `EMBEDDING_PROVIDER=voyage` and `EMBEDDING_DIM=1024`
+3. `npm run indexes` has finished and all four `vs_*` indexes report `READY` at 1024 dimensions
+
+Then run it **once**:
+
+```powershell
+$env:EMBEDDINGS_MODE="real"
+npm run ingest:runbooks
+```
+
+Skip a fake write if the URI and Voyage key are already present. A corpus written with `EMBEDDINGS_MODE=fake` is semantically meaningless and must be re-ingested with `real` before PHASE-07 judges retrieval. Re-embedding on every chunker tweak wastes the key.

@@ -1,6 +1,6 @@
 # Phase 05 — NASEMSO Runbook Corpus
 
-**Status:** PENDING
+**Status:** COMPLETE
 **Tasks:** US-009
 **Depends on:** PHASE-01 only (contracts + fakes)
 **Budget:** 25 min
