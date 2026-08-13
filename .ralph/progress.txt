@@ -225,12 +225,13 @@ Known Gotchas as well. That file is the only way parallel agents learn from each
 **Fakes Used During Build:** `EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake`
 **Key Decisions:**
 - `toDate` appends `Z` so naive Socrata timestamps store as UTC wall-clock; `ref` is timezone-stable.
-- Slice fetches are sequential with one timeout/5xx retry. Parallel `$limit` requests timed out here.
+- Slice fetches are sequential with up to three timeout/5xx retries (120s each). Parallel `$limit` requests timed out here.
 - Pitch cache is the point of `npm run pitch`: default reads `data/pitch-numbers.json`; `--refresh` refetches; `--offline` fails closed if the cache is missing.
 - Reclass priors are Socrata `$group` counts for `UNC`/`SICK` from 2023 onward, including night hours via `date_extract_hh`. Never a literal copied from `reference.png`.
 **Issues Found & Fixed:**
-- First full ingest: four parallel Socrata slice requests hit a 45s abort. Sequential 90s fetches + one retry completed in ~35s.
+- First full ingest: four parallel Socrata slice requests hit a 45s abort. Sequential 90s fetches + one retry completed in ~35s. Atlas ingest later hit a 90s abort; timeout is now 120s with three attempts.
 - `verifyCodeLabels` reported 11 unlabeled codes on divergent/control only (`PEDSTR`, `ALTMEN`, `ANAPH`, `BURNMI`, `SICMIN`, `STATEP`, `STNDBM`, `STNDBY`). Demo path (`UNC`/`SICK`) is fully labeled. Recorded in `agents.md`; did not edit PHASE-01 `CODE_LABELS`.
+- A leftover PowerShell `MONGODB_URI` pointing at local Docker shadowed `.env.local` until it was unset.
 **Contract Changes:** None
 **Verification Results:**
 - `npm run typecheck` — zero errors
@@ -239,7 +240,8 @@ Known Gotchas as well. That file is the only way parallel agents learn from each
 - `--slice=arrest --dry-run`: 40 fetched, 40 transformed, 0 drops, unlabeled none
 - `npm run ingest:incidents` against local Docker Mongo (no PHASE-02 indexes): 178 historical docs, 40 UNC→ARREST, 40 SICK→CARD, 20 control, 1 severity drop, 1 cross-slice duplicate, leak=0, BSON dates, only `_id_` index
 - Second ingest: count 178 unchanged, upserted 0, modified 178, createdAt untouched
+- Live Atlas (MongoDB 8.0.29, replica set `atlas-8o6fie-shard-0`): same 178 historical / 40 UNC→ARREST / 40 SICK→CARD / 0 live after `npm run ingest:incidents` with `.env.local` URI
 - `npm run pitch -- --refresh`: all ten metrics match expected, **zero drift**, `divergent_2023_pct` = 15.0; 130 priors, UNC+SICK, nightOnly true, no mockup 18%
 - Cached `npm run pitch` and `--offline` make zero network requests; `--offline` without cache exits 1
-**Next:** PHASE-06 can seed memory from the 178-incident corpus. PHASE-07 serves `data/reclass-priors.json` (SICK→CARD 2.6% population / 2.9% in B3 — not the mockup 18%). PHASE-15: the slide number is still **15.0%**. Copy `.env.example` to `.env.local` with Atlas `MONGODB_URI` and re-run ingest there for the stage cluster.
+**Next:** PHASE-07 serves `data/reclass-priors.json` (SICK→CARD 2.6% population / 2.9% in B3 — not the mockup 18%). PHASE-15: the slide number is still **15.0%**. Preflight saw 3 vector indexes (M0 cap); confirm Flex before a fourth `vs_*`.
 
