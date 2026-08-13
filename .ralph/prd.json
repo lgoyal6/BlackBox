@@ -1,0 +1,690 @@
+{
+  "projectName": "BlackBox",
+  "description": "Voice-native flight recorder and recall system for EMS crews: captures the decisions medics make and the reasons they give, embeds them in MongoDB Atlas, and retrieves that reasoning to brief the next crew.",
+  "stack": ["Next.js 16.3", "React 19.2", "TypeScript", "MongoDB Atlas", "LangGraph 1.4.9", "ElevenLabs"],
+  "contract": ".ralph/contracts.md",
+  "designReference": "reference.png",
+  "executionModel": {
+    "note": "PHASE-01 is the only prerequisite. Every phase from 02 to 15 can be implemented simultaneously by a different agent.",
+    "rules": [
+      "Own only the files listed in your phase's `owns` array. Never create or edit a file owned by another phase.",
+      "Import only from @/lib/contracts, @/lib/ports, @/lib/registry, @/lib/db/client, and your own files.",
+      "Set the *_MODE env vars of ports you consume to `fake` so your phase verifies with zero dependency on other phases.",
+      "A shared type that is not in .ralph/contracts.md is a contract change: update contracts.md and agents.md before implementing it."
+    ]
+  },
+  "phases": [
+    {
+      "id": "PHASE-01",
+      "title": "Contracts, Scaffold, Ports, and Fakes",
+      "spec": "specs/phase-01-contracts-and-scaffold.md",
+      "status": "pending",
+      "parallel": false,
+      "dependsOn": [],
+      "blocks": ["PHASE-02", "PHASE-03", "PHASE-04", "PHASE-05", "PHASE-06", "PHASE-07", "PHASE-08", "PHASE-09", "PHASE-10", "PHASE-11", "PHASE-12", "PHASE-13", "PHASE-14", "PHASE-15"],
+      "budgetMinutes": 30,
+      "owns": ["package.json", "tsconfig.json", "next.config.ts", ".env.example", ".gitignore", "README.md", "src/lib/contracts/**", "src/lib/ports.ts", "src/lib/fakes/**", "src/lib/registry.ts", "src/lib/db/client.ts", "src/lib/llm.ts", "src/lib/env.ts", "scripts/check-atlas.ts", "fixtures/** (except curated-postmortems.json)"],
+      "implementsPort": "LlmPort"
+    },
+    {
+      "id": "PHASE-02",
+      "title": "Collections, Validators, and Vector Indexes",
+      "spec": "specs/phase-02-collections-and-indexes.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 25,
+      "owns": ["src/lib/db/indexes.ts", "src/lib/db/validators.ts", "scripts/create-indexes.ts"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-03",
+      "title": "Embeddings Provider",
+      "spec": "specs/phase-03-embeddings.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 20,
+      "owns": ["src/lib/embeddings/**"],
+      "implementsPort": "EmbeddingsPort"
+    },
+    {
+      "id": "PHASE-04",
+      "title": "NYC Dispatch Ingestion and the Pitch Number",
+      "spec": "specs/phase-04-nyc-ingestion.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 30,
+      "owns": ["src/lib/ingest/nyc.ts", "scripts/ingest-incidents.ts", "scripts/compute-pitch-number.ts"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-05",
+      "title": "NASEMSO Runbook Corpus",
+      "spec": "specs/phase-05-runbook-corpus.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 25,
+      "owns": ["src/lib/ingest/runbooks.ts", "scripts/ingest-runbooks.ts"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-06",
+      "title": "Seeded Memory (postmortems + remediations)",
+      "spec": "specs/phase-06-seeded-memory.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 30,
+      "owns": ["src/lib/memory/seed.ts", "scripts/seed-memory.ts", "fixtures/curated-postmortems.json"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-07",
+      "title": "Three-Collection Fan-Out Retrieval",
+      "spec": "specs/phase-07-retrieval-fanout.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 35,
+      "owns": ["src/lib/retrieval/**", "scripts/verify-retrieval.ts"],
+      "implementsPort": "RetrievalPort"
+    },
+    {
+      "id": "PHASE-08",
+      "title": "LangGraph, MongoDB Checkpointer, and the Readback Interrupt",
+      "spec": "specs/phase-08-langgraph-checkpointer.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 90,
+      "owns": ["src/lib/graph/**", "scripts/run-graph-local.ts", "scripts/kill-resume-drill.ts"],
+      "implementsPort": "GraphPort"
+    },
+    {
+      "id": "PHASE-09",
+      "title": "Decision Capture, Postmortem Generator, ePCR Draft",
+      "spec": "specs/phase-09-memory-writers.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 40,
+      "owns": ["src/lib/memory/decisions.ts", "src/lib/memory/postmortem.ts", "src/lib/memory/epcr.ts"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-10",
+      "title": "Event Bus and SSE Stream",
+      "spec": "specs/phase-10-event-bus-sse.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 30,
+      "owns": ["src/lib/events/**", "app/api/events/route.ts"],
+      "implementsPort": "EventsPort"
+    },
+    {
+      "id": "PHASE-11",
+      "title": "Tool, Demo, and State API Routes",
+      "spec": "specs/phase-11-api-routes.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 40,
+      "owns": ["app/api/tools/**", "app/api/demo/**", "app/api/state/**", "app/api/counters/**"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-12",
+      "title": "Change Stream Worker",
+      "spec": "specs/phase-12-change-stream-worker.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 25,
+      "owns": ["worker/**"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-13",
+      "title": "ElevenLabs Voice Layer",
+      "spec": "specs/phase-13-elevenlabs-voice.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 90,
+      "owns": ["src/lib/voice/**", "app/voice/**", "app/api/voice/**", "scripts/setup-agent.ts"],
+      "implementsPort": "VoicePort"
+    },
+    {
+      "id": "PHASE-14",
+      "title": "Judge-Facing Dashboard",
+      "spec": "specs/phase-14-judge-dashboard.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 75,
+      "owns": ["app/page.tsx", "app/layout.tsx", "app/globals.css", "src/components/**", "tailwind.config.ts"],
+      "implementsPort": null
+    },
+    {
+      "id": "PHASE-15",
+      "title": "Demo Orchestration and Rehearsal",
+      "spec": "specs/phase-15-demo-orchestration.md",
+      "status": "pending",
+      "parallel": true,
+      "dependsOn": ["PHASE-01"],
+      "budgetMinutes": 45,
+      "owns": ["scripts/demo-*.ts", "docs/**"],
+      "implementsPort": null
+    }
+  ],
+  "tasks": [
+    {
+      "id": "US-001",
+      "phase": "PHASE-01",
+      "title": "Next.js scaffold, env validation, and Mongo client",
+      "acceptanceCriteria": [
+        "npm install completes with the versions pinned in overview.md",
+        "npm run build succeeds and npm run dev serves a page without runtime error",
+        "package.json contains every script listed in contracts.md section 12",
+        "next.config.ts lists mongodb, unpdf, and @langchain/langgraph-checkpoint-mongodb in serverExternalPackages",
+        "assertEmbeddingConfig() throws on a deliberate EMBEDDING_MODEL / EMBEDDING_DIM mismatch",
+        "The Mongo client is cached on globalThis so 6 consecutive dev hot-reloads do not exhaust the Atlas connection pool",
+        "npm run check exits 0 against the live cluster and non-zero with a corrupted MONGODB_URI",
+        "Cluster tier is confirmed Flex or higher, or the M0 Plan B deviation is recorded in contracts.md and agents.md"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "phase": "PHASE-01",
+      "title": "Transcribe contracts.md into src/lib/contracts, ports.ts, and registry.ts",
+      "acceptanceCriteria": [
+        "Every type, interface, and constant in contracts.md sections 2 through 10 exists and is exported from @/lib/contracts or @/lib/ports",
+        "npm run typecheck passes with zero errors under strict mode",
+        "labelFor() never returns a bare dispatch code for any key in CODE_LABELS or for an unknown code",
+        "toDisplayId() returns a 4-digit left-padded string for an 8-digit incident id",
+        "registry.ts resolves fakes when the matching *_MODE is `fake`",
+        "registry.ts falls back to the fake and logs a warning containing the string FAKE PORT when a real module is absent",
+        "registry.ts uses only static string literals in its dynamic imports so no phase ever needs to edit it"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "phase": "PHASE-01",
+      "title": "Deterministic fakes for all six ports plus fixtures",
+      "acceptanceCriteria": [
+        "All six fakes satisfy their port interfaces, verified by a type-level assignment",
+        "fakes/embeddings.embedOne returns env.embeddingDim floats and two calls on the same text return identical arrays",
+        "Two different strings produce vectors with cosine similarity below 0.5",
+        "fakes/retrieval.signatureMatch returns null for a query containing `transfer` and a populated match otherwise",
+        "All six owned fixture files exist and parse as their contract types",
+        "fixtures/event-stream.json contains every field needed to render reference.png, including incident ref 260813-0442, four voice turns, one decision, one awaiting readback, three retrieval hits at 0.91/0.87/0.84, and checkpoint count 34",
+        "fixtures/incidents.json includes _groundTruth on historical records so answer-stripping can be tested offline",
+        "No fake performs any network or database call"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "phase": "PHASE-02",
+      "title": "Create collections, JSON Schema validators, and standard indexes",
+      "acceptanceCriteria": [
+        "scripts/create-indexes.ts creates all collections named in contracts.md section 2 on a clean database",
+        "Inserting a decisions document with rationale set to an empty string is rejected by the server-side validator",
+        "Inserting a decisions document with a valid non-empty rationale and actionChosen succeeds",
+        "incidents.incidentId has a unique index",
+        "events has a TTL index on t with expireAfterSeconds 86400",
+        "Running the script a second time creates nothing, errors on nothing, and exits 0",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "phase": "PHASE-02",
+      "title": "Create four Atlas Vector Search indexes and block until READY",
+      "acceptanceCriteria": [
+        "Four vector search indexes named vs_decisions, vs_remediations, vs_runbooks, vs_postmortems are created",
+        "Every index numDimensions equals env.embeddingDim, asserted and printed by the script",
+        "Declared filter paths exist on the target collection: callTypeFamily and outcome on decisions, callTypeFamily/outcome/origin on remediations, callTypeFamily/origin on postmortems, sectionTitle on runbooks",
+        "The script polls listSearchIndexes and does not exit until all four report status READY, printing progress",
+        "The script exits non-zero with an explicit message when the cluster tier cannot host four search indexes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "phase": "PHASE-03",
+      "title": "Implement EmbeddingsPort with batching, retry, and Mongo-backed cache",
+      "acceptanceCriteria": [
+        "src/lib/embeddings/index.ts default-exports an object satisfying EmbeddingsPort",
+        "embedOne returns exactly env.embeddingDim floats",
+        "embed() on 300 short strings issues at most 3 provider requests, verified by a logged request counter",
+        "Input order is preserved: embed(['a','b','c'])[1] equals embedOne('b') for the same input type",
+        "Voyage calls pass input_type document for writes and query for searches; OpenAI accepts and ignores the parameter",
+        "A second identical call is served from the _embed_cache collection and the cache document count does not grow",
+        "Switching EMBEDDING_PROVIDER to openai with EMBEDDING_DIM 1536 works without changing any call site",
+        "A returned vector of the wrong length throws an error naming both the expected and actual dimension",
+        "A 400 response is not retried; a 429 is retried with backoff",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "phase": "PHASE-04",
+      "title": "Ingest NYC dispatch slices with answers stripped",
+      "acceptanceCriteria": [
+        "npm run ingest:incidents inserts approximately 2000 documents into incidents",
+        "At least 150 documents match cad.initialCallType UNC with _groundTruth.finalCallType ARREST",
+        "At least 150 documents match cad.initialCallType SICK with _groundTruth.finalCallType CARD",
+        "No document has a top-level finalCallType, finalSeverityLevelCode, or incidentCloseDatetime",
+        "Every cad.initialSeverityLevelCode is an integer between 1 and 8",
+        "Every cad.incidentDatetime is a Date instance, not a string",
+        "Every document has displayId, ref, callTypeFamily, and isLive false",
+        "Every Socrata request sends $order=incident_id",
+        "Query parameters are encoded by URLSearchParams rather than hand-built strings",
+        "Re-running the script leaves the document count unchanged",
+        "Every ingested initialCallType resolves to a label via labelFor, and any miss is reported",
+        "The phase verifies end to end with EMBEDDINGS_MODE=fake",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "phase": "PHASE-04",
+      "title": "Compute the pitch number and reclassification priors from the data",
+      "acceptanceCriteria": [
+        "npm run pitch prints total incidents, the 2023+ call-type-change rate, the all-time rate, the undertriage rate, and the reopen rate",
+        "The 2023+ call-type-change rate computes to approximately 15.0 percent",
+        "Results are written to data/pitch-numbers.json and read from cache on subsequent runs without a network call",
+        "data/reclass-priors.json is produced with ReclassPrior-shaped records grouped by initial call type, dispatch area, and night flag",
+        "A disagreement between a fresh computation and the values in overview.md is reported explicitly rather than silently overwritten"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "phase": "PHASE-05",
+      "title": "Download, chunk, embed, and load the NASEMSO guideline corpus",
+      "acceptanceCriteria": [
+        "The PDF is downloaded from the ems.utah.gov mirror, not nasemso.org, and cached to data/",
+        "npm run ingest:runbooks writes between 50 and 3000 documents to runbooks",
+        "Every document has non-empty text, sectionTitle, at least one sectionPath element, pageStart, embedding, and embeddedText",
+        "Every embedding has length env.embeddingDim",
+        "Mean text length is between 400 and 2000 characters",
+        "No chunk text contains a running header or footer line that appears on more than 20 percent of pages",
+        "Front matter and reference lists are excluded; the 2022 Field Triage appendix is included",
+        "Three randomly sampled chunks read as coherent prose that could be spoken aloud without sounding truncated",
+        "A chunk count below 50 or above 3000 aborts before any embedding call is made",
+        "Re-running replaces rather than duplicates and the count is stable",
+        "The phase verifies with EMBEDDINGS_MODE=fake",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "phase": "PHASE-06",
+      "title": "Generate and load seeded postmortem narratives",
+      "acceptanceCriteria": [
+        "npm run seed writes at least 300 postmortems with origin seeded",
+        "At least 60 come from UNC to ARREST and at least 60 from SICK to CARD",
+        "Every narrative is between 40 and 200 words and has an embedding of length env.embeddingDim",
+        "Every postmortem has displayId, whatChanged, severityDelta, and callTypeFamily",
+        "No generated narrative contains a numeric drug dose, verified by grepping for mg, mcg, and mL and reviewing every hit",
+        "The --templated flag produces a complete corpus with zero LLM calls",
+        "A fixed random seed makes two runs select the same incidents",
+        "The script asserts decisions.countDocuments() is 0 when it finishes and fails loudly otherwise",
+        "Re-running leaves seeded counts stable and does not delete curated or live documents",
+        "The phase verifies with EMBEDDINGS_MODE=fake and LLM_MODE=fake",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "phase": "PHASE-06",
+      "title": "Derive remediations with real cost, plus curated demo postmortems",
+      "acceptanceCriteria": [
+        "remediations contains both success and failure documents with at least 50 failures",
+        "reopenIndicator true, severityDelta above 0, and total time above 1.5x the family median each produce a failure",
+        "Every failure costMinutes is computed as (incidentTotalSeconds - familyMedianSeconds)/60 clamped at 0, never a hardcoded literal",
+        "Family medians are computed once with a single aggregation rather than per row",
+        "fixtures/curated-postmortems.json contains 2 or 3 records, each attached to a real ingested incidentId with real response-time values",
+        "Every curated record is marked origin curated and is distinguishable from seeded and live",
+        "At least one curated narrative contains the receiving-facility diversion detail and its derived cost in minutes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-012",
+      "phase": "PHASE-07",
+      "title": "Single-pipeline three-collection fan-out with RRF fusion",
+      "acceptanceCriteria": [
+        "src/lib/retrieval/index.ts default-exports an object satisfying RetrievalPort",
+        "fanOut issues exactly one aggregate call, verified with driver command monitoring",
+        "The pipeline runs on decisions and reaches postmortems and runbooks through $unionWith sub-pipelines that each begin with $vectorSearch",
+        "vectorSearchScore is captured immediately after each $vectorSearch inside its own sub-pipeline",
+        "numCandidates is at least 20 times the limit for every sub-pipeline",
+        "Results include hits from postmortems and runbooks while decisions is empty, and no exception is thrown",
+        "Fusion uses reciprocal rank fusion with RRF_K and SOURCE_WEIGHTS from the contract, not raw cross-collection score comparison",
+        "Every Hit carries source, docId, rank, raw score, rrf, title, text, and a spoken field",
+        "Every spoken field is 40 words or fewer",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-013",
+      "phase": "PHASE-07",
+      "title": "Signature match, failure memory, reclassification priors, and the verify script",
+      "acceptanceCriteria": [
+        "signatureMatch searches decisions and postmortems only, never runbooks",
+        "signatureMatch returns null for an off-distribution query such as routine interfacility transfer, stable",
+        "signatureMatch returns a match with a displayId for a UNC to ARREST style query",
+        "Every signatureMatch summary is 25 words or fewer",
+        "failureMemory returns only remediations with outcome failure, plus postmortems with severityDelta above 0",
+        "reclassPrior reads data/reclass-priors.json, caches it, and returns null when the file is absent instead of throwing",
+        "npm run verify:retrieval prints every vs_* index status first and exits non-zero with a clear message if any is not READY",
+        "The script runs 4 fixed probe queries and asserts hits arrive from at least 2 distinct sources",
+        "--show-pipeline prints the aggregation pipeline",
+        "The phase verifies with EMBEDDINGS_MODE=fake"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-014",
+      "phase": "PHASE-08",
+      "title": "Graph state, MongoDBSaver checkpointer, and node wiring",
+      "acceptanceCriteria": [
+        "src/lib/graph/index.ts default-exports an object satisfying GraphPort",
+        "The graph compiles with MongoDBSaver using the shared client, checkpoint collection checkpoints and writes collection checkpoint_writes",
+        "grep across the repository returns zero occurrences of MemorySaver",
+        "thread_id equals incidentId for every invocation",
+        "timeline, nodeTrail, retrieved, and decisionsRecorded use concat reducers while other fields are last-write-wins",
+        "A full call produces a nodeTrail containing every node in graph order",
+        "checkpoints and checkpoint_writes are non-empty after one run",
+        "Every node emits a node event on enter and on exit",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-015",
+      "phase": "PHASE-08",
+      "title": "Memory nodes: signature match, brief, and failure-excluding plan",
+      "acceptanceCriteria": [
+        "triage performs no LLM call",
+        "brief output is 55 words or fewer",
+        "brief says new signature, no prior history when signature is null",
+        "brief never contains a raw dispatch code such as UNC or EDP",
+        "plan.excludedPaths is non-empty for a SICK-to-cardiac incident that has seeded failure memory",
+        "Every excludedPath carries a why, a sourceDisplayId, and a costMinutes value or null",
+        "plan logs a warning when excludedPaths is empty",
+        "No plan.steps entry matches the dose pattern /\\d+\\s*(mg|mcg|mL|g)\\b/i, enforced by a filter and not only by the prompt",
+        "The phase verifies with RETRIEVAL_MODE=fake and LLM_MODE=fake"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-016",
+      "phase": "PHASE-08",
+      "title": "Readback and await_input interrupts with verified crash resume",
+      "acceptanceCriteria": [
+        "A run reaches readback_gate and returns an interrupt payload of type readback",
+        "graph.getState(...).next reports the pending node while interrupted",
+        "Neither readback_gate nor await_input performs any write or emit before calling interrupt()",
+        "Killing the process while interrupted, starting a fresh process, and resuming with Command continues from the gate with timeline and signature intact",
+        "Decision and remediation counts after a kill-and-resume run are identical to an uninterrupted run, proving no duplicated side effects",
+        "npm run drill automates the kill-and-resume and exits 0 on success",
+        "npm run graph:local --auto-confirm completes a full call including postmortem"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-017",
+      "phase": "PHASE-09",
+      "title": "Decision writer with enforced rationale",
+      "acceptanceCriteria": [
+        "recordDecision throws on an empty rationale before any database call is made",
+        "recordDecision throws on a whitespace-only rationale",
+        "A valid call inserts exactly one document whose embeddedText contains the rationale as a substring",
+        "embeddedText concatenates utterance, actionChosen, and rationale",
+        "The inserted embedding has length env.embeddingDim",
+        "A decision event is emitted through EventsPort on every successful write",
+        "The module contains no LLM call, since rationale extraction belongs to PHASE-13",
+        "The phase verifies with EMBEDDINGS_MODE=fake and EVENTS_MODE=fake",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-018",
+      "phase": "PHASE-09",
+      "title": "Live postmortem generator and ePCR draft",
+      "acceptanceCriteria": [
+        "generateAndWrite produces a postmortem with origin live, 40 to 200 words, and a valid embedding",
+        "The live narrative uses the same register and length band as the seeded corpus",
+        "whatChanged is derived from the observed call outcome and never from _groundTruth",
+        "A live postmortem is retrievable by fanOut immediately after being written",
+        "draftPcr returns all eight sections in medic-expected order",
+        "The Clinical rationale section is non-empty when the call recorded at least one decision",
+        "renderPcrText output begins with an unsigned-draft header and is never marked final",
+        "Neither the postmortem narrative nor the ePCR text contains any value read from _groundTruth",
+        "The full close path completes in under 8 seconds"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-019",
+      "phase": "PHASE-10",
+      "title": "MongoDB-backed event bus implementing EventsPort",
+      "acceptanceCriteria": [
+        "src/lib/events/index.ts default-exports an object satisfying EventsPort",
+        "emit assigns a monotonic seq per incident using an atomic counter rather than a document count",
+        "Concurrent emits produce no duplicate seq values for the same incident",
+        "recent(incidentId, n) returns the last n events in ascending seq order",
+        "Events are persisted to the events collection so any process can emit",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-020",
+      "phase": "PHASE-10",
+      "title": "SSE route streaming from an Atlas change stream",
+      "acceptanceCriteria": [
+        "GET /api/events sets Content-Type text/event-stream, Cache-Control no-cache no-transform, and X-Accel-Buffering no",
+        "The route exports runtime nodejs and dynamic force-dynamic",
+        "The first frame is a replay of the last 200 events for the requested incident",
+        "New events inserted by any process reach a connected client within 1 second",
+        "A heartbeat comment is sent at least every 15 seconds",
+        "The change stream cursor is closed when the client disconnects, verified by opening and closing 10 connections without growing the server's cursor count",
+        "A slow client is dropped rather than allowed to block the producer"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-021",
+      "phase": "PHASE-11",
+      "title": "Seven voice tool routes with validation and latency budgets",
+      "acceptanceCriteria": [
+        "All seven tool routes exist at /api/tools/[tool] and validate their body with the Zod schema from the contract",
+        "Every tool route returns 401 without a matching X-BlackBox-Secret header",
+        "An invalid body returns 400 with an { error } shape",
+        "params is awaited, matching the Next.js 16 Promise signature",
+        "recall_memory and get_protocol return in under 400 ms warm, measured not assumed",
+        "propose_readback returns in under 300 ms, contains the drug, dose, and route verbatim, and makes no LLM call",
+        "record_decision returns in under 300 ms and the document appears within 3 seconds via a background write",
+        "confirm_readback resumes the interrupted graph and clears the pending interrupt",
+        "Every snippet returned to the voice agent has a spoken field of 40 words or fewer",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-022",
+      "phase": "PHASE-11",
+      "title": "Demo control, state, and counter routes",
+      "acceptanceCriteria": [
+        "POST /api/demo/fire clones a real ingested incident matching the requested pattern into a fresh isLive document and returns incidentId, ref, and displayId",
+        "POST /api/demo/fire with pattern arrest selects a UNC to ARREST incident and with pattern cardiac a SICK to CARD incident",
+        "POST /api/demo/reset deletes all decisions, live postmortems, live remediations, all events, all checkpoints, and isLive incidents",
+        "POST /api/demo/reset leaves runbooks, seeded postmortems, and seeded remediations counts unchanged, asserted before and after",
+        "GET /api/state/[incidentId] returns values, next, and checkpointCount",
+        "GET /api/counters returns per-collection counts, checkpointCount, and embedding provider info",
+        "The phase verifies with GRAPH_MODE=fake"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-023",
+      "phase": "PHASE-12",
+      "title": "Change stream worker with resume token and polling fallback",
+      "acceptanceCriteria": [
+        "npm run worker starts and logs the active trigger mode",
+        "Inserting an isLive incident starts a graph run with no polling loop active in changestream mode",
+        "A second watcher on decisions, postmortems, and remediations emits write events",
+        "The resume token is persisted to _watch_state after each event and passed as resumeAfter on startup",
+        "An incident inserted while the worker is stopped is processed after restart, proving the resume token works",
+        "TRIGGER_MODE=poll fires the graph within 3 seconds of an insert",
+        "A missing collection produces a clear error message instead of hanging",
+        "SIGINT closes both cursors and exits cleanly",
+        "The phase verifies with GRAPH_MODE=fake",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-024",
+      "phase": "PHASE-13",
+      "title": "ElevenLabs agent configuration and system prompt",
+      "acceptanceCriteria": [
+        "The current agent-create payload shape and server-tool schema format were confirmed against live ElevenLabs documentation before the config was written",
+        "npm run agent:setup creates or updates an agent and prints an agentId, and is idempotent across runs",
+        "All seven server tools are registered and point at PUBLIC_BASE_URL/api/tools/* with the shared-secret header",
+        "Every tool description states the ordering rule that propose_readback precedes record_decision for anything with a dose, stated twice",
+        "Tool timeouts are set to 3 seconds or less",
+        "The system prompt contains the scope guardrail sentence verbatim",
+        "The system prompt forbids reading raw dispatch codes aloud and forbids citing an incident reference not returned by recall_memory",
+        "The system prompt specifies the tone shift from calm during the brief to clipped when confirming irreversible actions",
+        "Interruption and barge-in are enabled in the agent configuration",
+        "--print-prompt dumps the resolved system prompt"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-025",
+      "phase": "PHASE-13",
+      "title": "Tool handlers, rationale extraction, and deterministic readback composition",
+      "acceptanceCriteria": [
+        "src/lib/voice/index.ts default-exports an object satisfying VoicePort",
+        "composeReadback is pure deterministic string formatting with no LLM call and reproduces the dose and units exactly",
+        "Rationale extraction returns null rather than a fabricated rationale when the utterance contains no reason",
+        "Extraction on all 8 records in fixtures/utterances.json produces the expected action and rationale split",
+        "The extractor never invents a rationale, verified against the fixture cases that deliberately omit one",
+        "GET /api/voice/signed-url returns url and agentId and the ElevenLabs API key never appears in any client bundle",
+        "npm run typecheck passes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-026",
+      "phase": "PHASE-13",
+      "title": "Browser WebRTC operator console and live voice verification",
+      "acceptanceCriteria": [
+        "app/voice/page.tsx connects a live session via useConversation and shows connection state, mic level, and the current incident",
+        "The agent speaks a brief derived from a real recall_memory call, verified by the tool invocation appearing in the server log",
+        "Speaking over the agent mid-brief stops it, verified by ear",
+        "Stating a drug and dose triggers propose_readback before any record_decision, verified by server log ordering",
+        "The spoken readback contains the dose and units exactly as said with no rounding or paraphrase",
+        "Confirming resumes the LangGraph interrupt and the graph advances",
+        "Stating an action with no reason produces exactly one short follow-up question",
+        "A decision recorded by voice appears in decisions with a non-empty rationale",
+        "The agent never speaks a raw dispatch code, verified against the transcript",
+        "Asking what should I give produces a refusal plus an attributed guideline quote, never a treatment suggestion",
+        "Time from end of medic speech to first agent audio on the brief is under about 1.5 seconds",
+        "close_call produces a postmortem and a PCR draft"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-027",
+      "phase": "PHASE-14",
+      "title": "Fixture-driven dashboard matching reference.png",
+      "acceptanceCriteria": [
+        "With NEXT_PUBLIC_EVENTS_MODE=fixture and no backend running, the dashboard renders the full state shown in reference.png",
+        "The header shows incident ref 260813-0442, the expanded call type, dispatch area B3, unit 14B, an elapsed timer, and a recording pill",
+        "The layout is a two-column split at roughly 60/40 with the voice timeline left and the memory panel right",
+        "Medic and agent turns are visually distinguished and clock times render in monospace",
+        "The decision capture renders as a highlighted bordered block visually distinct from ordinary turns",
+        "A pending readback renders as an amber Awaiting readback pill",
+        "Vector search hits render with right-aligned monospace similarity scores of 0.91, 0.87, and 0.84, plus one retrieved snippet in full",
+        "Write counter tiles render decisions 7 and timeline 34",
+        "The footer renders the graph node chain with readback_gate highlighted and a checkpoint indicator reading 34",
+        "The event union is rendered with an exhaustive switch so an unhandled event kind is a compile error",
+        "Body text is at least 14px and no text a judge must read is low-contrast gray on dark",
+        "npm run build and npm run typecheck both pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-028",
+      "phase": "PHASE-14",
+      "title": "Live SSE wiring with replay, gap detection, and reconnect",
+      "acceptanceCriteria": [
+        "In real mode the dashboard consumes GET /api/events via EventSource and bootstraps counters from GET /api/counters",
+        "The useEventStream hook applies the initial replay frame before live events",
+        "A seq gap is detected and triggers a refetch rather than being silently ignored",
+        "Killing and restarting the server causes the dashboard to reconnect with backoff and repopulate, never showing a blank screen",
+        "The timeline auto-scrolls on new entries but pauses auto-scroll when the operator has scrolled up",
+        "The checkpoint counter visibly increments as checkpoint events arrive"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-029",
+      "phase": "PHASE-15",
+      "title": "Demo scripts and automated preflight",
+      "acceptanceCriteria": [
+        "scripts/demo-fire.ts fires either scenario by pattern name and prints the incident ref",
+        "scripts/demo-reset.ts restores a clean slate without touching runbooks or seeded memory",
+        "npm run preflight checks that all four vs_* indexes report READY",
+        "Preflight asserts the decisions collection is empty",
+        "Preflight asserts seeded postmortem and runbook chunk counts are above their floors",
+        "Preflight fails when any port is resolving to a fake, detected by grepping for FAKE PORT warnings",
+        "Preflight verifies data/pitch-numbers.json exists and is served from cache with no network call",
+        "Preflight verifies the tunnel URL resolves and a tool route answers with the shared secret",
+        "Preflight verifies the worker is running in the expected trigger mode",
+        "Preflight exits non-zero on any failure and prints a single go or no-go line"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-030",
+      "phase": "PHASE-15",
+      "title": "Run of show, pitch notes, and rehearsed kill-and-resume",
+      "acceptanceCriteria": [
+        "docs/run-of-show.md contains the three-minute beat table with all nine time codes from 0:00 to 2:40",
+        "Both calls are scripted verbatim, with call one as UNC to ARREST and call two as SICK with weakness and nausea presenting as an occult cardiac event",
+        "The doc states explicitly why call two is a variant rather than a repeat",
+        "The doc requires real audio and forbids narrating a text log",
+        "The kill-and-resume section lists exact keystrokes and requires three rehearsals",
+        "The cut list and the never-cut list both appear in the run of show",
+        "docs/pitch-notes.md leads with the 15.0 percent figure and its 5,653,498-incident basis",
+        "docs/pitch-notes.md states that the medic never looks at a screen and that the agent never makes a clinical call",
+        "docs/preflight.md mirrors every automated check plus the manual audio and window-position items",
+        "The closing response-time delta is documented with its derivation from real dataset fields and is computed before going on stage",
+        "The kill-and-resume has been rehearsed three times end to end with the full voice path"
+      ],
+      "passes": false
+    }
+  ]
+}

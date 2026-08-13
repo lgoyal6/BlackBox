@@ -1,0 +1,89 @@
+## BlackBox — Progress Log
+
+Voice-native flight recorder for EMS crews. MongoDB .Local Build Fest, Pier 48 SF, 2026-08-13.
+Read `.ralph/overview.md` then `.ralph/contracts.md` before starting any phase.
+
+---
+
+## Execution Model
+
+PHASE-01 is the only prerequisite. The moment `npm run typecheck` passes in PHASE-01, all fourteen
+remaining phases can be started simultaneously by different agents. Own only your phase's files
+(see the ownership table in overview.md) and set the `*_MODE` env vars of the ports you consume to
+`fake` so your phase verifies without waiting on anyone.
+
+---
+
+## Phase Status Overview
+
+- PHASE-01 (Contracts, Scaffold, Ports, and Fakes): PENDING  ← blocks everything, start here
+- PHASE-02 (Collections, Validators, and Vector Indexes): PENDING
+- PHASE-03 (Embeddings Provider): PENDING
+- PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): PENDING
+- PHASE-05 (NASEMSO Runbook Corpus): PENDING
+- PHASE-06 (Seeded Memory): PENDING
+- PHASE-07 (Three-Collection Fan-Out Retrieval): PENDING
+- PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): PENDING
+- PHASE-09 (Decision Capture, Postmortem, ePCR Draft): PENDING
+- PHASE-10 (Event Bus and SSE Stream): PENDING
+- PHASE-11 (Tool, Demo, and State API Routes): PENDING
+- PHASE-12 (Change Stream Worker): PENDING
+- PHASE-13 (ElevenLabs Voice Layer): PENDING
+- PHASE-14 (Judge-Facing Dashboard): PENDING
+- PHASE-15 (Demo Orchestration and Rehearsal): PENDING
+
+---
+
+## Pre-Build Findings (already done — do not repeat this work)
+
+**Date:** 2026-08-13
+**By:** planning session
+
+**Verified live against the Socrata API** (`76xm-jjuj`, no auth required):
+- 29,978,154 total NYC EMS incidents on record
+- 845,887 of 5,653,498 incidents since 2023 had the call type change after arrival = **15.0%**, the headline number
+- 2,750,007 of 29,978,154 all time = 9.2%
+- 400,548 undertriaged since 2023 (severity upgraded after arrival) = 7.1%
+- 237,210 incidents reopened = 0.79%
+- Top transitions since 2023 include `UNC`→`ARREST` (14,987) and `SICK`→`CARD` (15,966), which became the demo pair
+- Severity code direction resolved empirically: mean response time rises monotonically from code 1 (309 s) to code 8 (2837 s), so lower code = more severe. Codes 0 and 9 are noise.
+- JSON API keys are lowercase snake_case and the identifier is `incident_id`, not `CAD_INCIDENT_ID`
+
+**Verified source availability:**
+- `nasemso.org` PDF returns 403 to non-browser clients; the `ems.utah.gov` mirror returns 200 with 5,040,475 bytes
+- Dataset code-description attachment located at asset id `1f3c87df-ffa3-4bda-a63c-45aeac003a26`
+
+**Verified package versions** (all current on the registry): next 16.3.0, react 19.2.8, mongodb 7.5.0,
+@langchain/langgraph 1.4.9, @langchain/langgraph-checkpoint-mongodb 1.4.0, @elevenlabs/react 1.12.0,
+@elevenlabs/elevenlabs-js 2.63.0, unpdf 1.8.1, voyageai 0.4.0, zod 4.4.3, tsx 4.23.12.
+
+**Open items carried into the build:** tune `SIGNATURE_MATCH_FLOOR`; confirm `@langchain/langgraph` v1
+export names against installed types; decide on the Twilio outbound upgrade after the browser
+transport works.
+
+---
+
+## Iteration Log
+
+_Append one entry per completed phase, using this shape:_
+
+```
+## Phase NN — <Title> — <COMPLETE|BLOCKED>
+**Date:** YYYY-MM-DD
+**Tasks:** US-NNN[, US-NNN]
+**Files Created:** `path`[, `path`]
+**Files Modified:** `path` [or "None"]
+**Ports Implemented:** <PortName at src/lib/<name>/index.ts> [or "None"]
+**Fakes Used During Build:** <which *_MODE were set to fake>
+**Key Decisions:**
+- <decision made during implementation and why>
+**Issues Found & Fixed:**
+- <what went wrong, how it was fixed>   [or "None — passed all checks on first attempt"]
+**Contract Changes:** <what changed in contracts.md, or "None">
+**Verification Results:**
+- <summary of typecheck/build/script results>
+**Next:** <what this unblocks>
+```
+
+_Anything under Issues Found & Fixed that another phase could hit belongs in `agents.md` under
+Known Gotchas as well. That file is the only way parallel agents learn from each other._
