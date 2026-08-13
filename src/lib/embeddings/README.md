@@ -44,12 +44,13 @@ There is no automatic Voyage → OpenAI failover. That would change 1024 → 153
 2. `npm run indexes` — PHASE-02 recreates all four vector indexes at 1536.
 3. Re-run `npm run ingest:runbooks` and `npm run seed`.
 
-## Live checks still outstanding
+## Live checks (verified 2026-08-13)
 
-These were not run in the implementation environment (no `.env.local`):
+Against the configured Atlas cluster and Voyage key:
 
-- Embed 5 texts twice; the second call must hit `_embed_cache` and not call the provider.
-- `getCached` must ignore a row whose `dim` ≠ `env.embeddingDim`.
-- Optional: `embedVoyage(["chest pain"], "query")` is length 1024, and the same text as `"document"` vs `"query"` is not identical.
+- Upserting the same cache row twice leaves one document; `getCached` returns it.
+- A cache row whose `dim` ≠ `env.embeddingDim` is ignored.
+- Embedding 5 texts twice hits `_embed_cache` on the second call (provider invoked once).
+- `embedVoyage(..., "query")` returns length 1024; the same text as `"document"` vs `"query"` is not identical.
 
-Commands are in `.ralph/specs/phase-03-embeddings.md` under Verification.
+PHASE-05 / PHASE-06 can set `EMBEDDINGS_MODE=real` and embed the corpus once.

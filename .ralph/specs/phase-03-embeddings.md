@@ -235,10 +235,10 @@ Call `assertEmbeddingConfig()` once at module load so a bad model-and-dimension 
 - [x] `isRetryable` returns `true` for 429, 500, 502, 503, 504 and for an `AbortError`, and `false` for 400, 401, 403, 404
 - [x] `withRetry` makes exactly 4 attempts against an always-429 stub and exactly 1 against an always-400 stub
 - [x] `cacheKey` differs for the same text under different `inputType` values and under different models
-- [ ] Against a live cluster, embedding 5 texts twice results in the second call reading all 5 from `_embed_cache` and invoking the provider zero times
-- [ ] `getCached` ignores a cache document whose `dim` does not equal `env.embeddingDim`
+- [x] Against a live cluster, embedding 5 texts twice results in the second call reading all 5 from `_embed_cache` and invoking the provider zero times
+- [x] `getCached` ignores a cache document whose `dim` does not equal `env.embeddingDim`
 - [x] `info()` returns the provider, model, and dimension from `env`
-- [ ] Optional live check, if `VOYAGE_API_KEY` is present: `embedVoyage(["chest pain"], "query")` returns one vector of length 1024, and the same text embedded as `"document"` and as `"query"` produces two vectors that are not identical
+- [x] Optional live check, if `VOYAGE_API_KEY` is present: `embedVoyage(["chest pain"], "query")` returns one vector of length 1024, and the same text embedded as `"document"` and as `"query"` produces two vectors that are not identical
 - [x] Importing the module with a deliberately mismatched `EMBEDDING_MODEL` and `EMBEDDING_DIM` throws at import time
 
 ## Verification
