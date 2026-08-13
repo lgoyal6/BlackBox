@@ -22,9 +22,9 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 - PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): PENDING
 - PHASE-05 (NASEMSO Runbook Corpus): PENDING
 - PHASE-06 (Seeded Memory): PENDING
-- PHASE-07 (Three-Collection Fan-Out Retrieval): PENDING
-- PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): PENDING
-- PHASE-09 (Decision Capture, Postmortem, ePCR Draft): PENDING
+- PHASE-07 (Three-Collection Fan-Out Retrieval): COMPLETE (typecheck + fixture/pure-fn checks green; Atlas-dependent checks unverified, no MONGODB_URI in this environment)
+- PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): COMPLETE (typecheck + fake-ported node checks green; `npm run drill` / MongoDBSaver.setup() unverified, no MONGODB_URI in this environment)
+- PHASE-09 (Decision Capture, Postmortem, ePCR Draft): COMPLETE (typecheck + pure-fn checks green; live Atlas writes unverified, no MONGODB_URI in this environment)
 - PHASE-10 (Event Bus and SSE Stream): PENDING
 - PHASE-11 (Tool, Demo, and State API Routes): PENDING
 - PHASE-12 (Change Stream Worker): PENDING
@@ -94,3 +94,129 @@ _Append one entry per completed phase, using this shape:_
 
 _Anything under Issues Found & Fixed that another phase could hit belongs in `agents.md` under
 Known Gotchas as well. That file is the only way parallel agents learn from each other._
+
+## Phase 07 — Three-Collection Fan-Out Retrieval — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-012, US-013
+**Files Created:** `src/lib/retrieval/pipeline.ts`, `src/lib/retrieval/fuse.ts`, `src/lib/retrieval/spoken.ts`,
+`src/lib/retrieval/signature.ts`, `src/lib/retrieval/failures.ts`, `src/lib/retrieval/priors.ts`,
+`src/lib/retrieval/index.ts`, `scripts/verify-retrieval.ts`
+**Files Modified:** None
+**Ports Implemented:** RetrievalPort at src/lib/retrieval/index.ts
+**Fakes Used During Build:** EMBEDDINGS_MODE=fake (only port this phase consumes)
+**Key Decisions:**
+- `signatureMatch`/`failureMemory` build their own pipelines directly via `pipeline.ts`/`fuse.ts` rather
+  than routing through `index.ts`'s `fanOutFrom`, to avoid a circular import and because they need
+  per-source filters `fanOutFrom`'s public options don't expose. See agents.md Technical Decisions.
+- Added `callTypeFamily` to the `meta` projection for decisions/postmortems/remediations to support the
+  undeclared-filter-path degradation path (over-fetch + TS post-filter).
+**Issues Found & Fixed:**
+- None — passed all checks on first attempt.
+**Contract Changes:** None.
+**Verification Results:**
+- `npm run typecheck`: 0 errors.
+- Pipeline stage order, `$meta` capture at stage 1, `numCandidates = 20×limit`: verified against a
+  synthetic query vector, no cluster.
+- RRF fusion arithmetic, per-source contiguous ranks, descending rrf order, 40-word spoken cap, no
+  trailing ellipsis: verified against `fixtures/hits.json`, no cluster.
+- Grep criteria (`_groundTruth`, `"success"`, `runbooks` in signature.ts) all pass.
+- **Unverified (no MONGODB_URI in this environment):** `npm run verify:retrieval`'s index-readiness
+  check and four relevance probes, live `fanOut`/`signatureMatch`/`failureMemory`/`reclassPrior` against
+  a real cluster, the empty-`decisions`-collection and missing-index degradation paths.
+**Next:** Unblocks PHASE-08 and PHASE-09's real (non-fake) `RETRIEVAL_MODE=real` cutover once Atlas is
+reachable. Announce: `SIGNATURE_MATCH_FLOOR` stays at the contract default (0.62) — not tuned, since no
+real embeddings/seeded data were available this session.
+
+## Phase 09 — Decision Capture, Postmortem Generator, ePCR Draft — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-017, US-018
+**Files Created:** `src/lib/memory/decisions.ts`, `src/lib/memory/postmortem.ts`, `src/lib/memory/epcr.ts`,
+`src/lib/memory/index.ts`
+**Files Modified:** None (did not touch `seed.ts`, PHASE-06's file)
+**Ports Implemented:** MemoryPort at src/lib/memory/index.ts
+**Fakes Used During Build:** EMBEDDINGS_MODE=fake, EVENTS_MODE=fake, LLM_MODE=fake
+**Key Decisions:**
+- `MemoryPort`'s real shape (`src/lib/ports.ts`, landed by PHASE-01) is narrower than this phase's own
+  inner functions (`recordDecision`/`generateAndWrite`/`draftPcr` take richer input, return full docs) —
+  `index.ts` is an adapter: it loads the incident (`PUBLIC_INCIDENT_PROJECTION`) and its decisions to
+  derive the fields the port's narrow input lacks (`displayId`, `callTypeFamily`), and narrows the
+  richer return values down to the port's `Promise<string>` / `Promise<{text}>` shapes.
+- `updateOutcome` (in the port, no dedicated file in the phase spec's file table) lives in `index.ts`.
+- Dropped the spec's literal `const { _groundTruth: _, ...safe } = incident` line in `postmortem.ts` —
+  it fails the file's own acceptance grep (`rg _groundTruth` must return nothing) because it names the
+  field as a string. Read only the needed fields off `incident` directly instead; never reference the
+  quarantined field at all, textually or otherwise.
+**Issues Found & Fixed:**
+- The `_groundTruth` grep-vs-suggested-code conflict above. Logged in agents.md so PHASE-07/08 (which
+  had the same instruction) don't repeat it — they didn't, having been written after this was caught.
+**Contract Changes:** None.
+**Verification Results:**
+- `npm run typecheck`: 0 errors.
+- `assertRationale` throws `EmptyRationaleError` on empty/whitespace before any port call (verified by
+  inspection — no Mongo call precedes it in the source); `embeddedTextFor` contains the rationale as a
+  substring; `draftPcr` returns exactly `PCR_SECTION_ORDER`; `renderPcrText` starts with the unsigned
+  header and contains no whole-word "final"/"signed"/"complete"; `whatChangedFrom` derives only from the
+  live record. All verified as pure-function checks with no cluster.
+- Grep criteria (`_groundTruth`, no `llm()`/`@/lib/llm` in decisions.ts) both pass.
+- **Unverified (no MONGODB_URI in this environment):** actual Atlas inserts/deletes, `write`/`decision`/
+  `pcr` event emission against a real events collection, the 8-second `generateAndWrite → draftPcr →
+  renderPcrText` budget under real (non-fake) ports.
+**Next:** Unblocks PHASE-08's `record_decision`/`postmortem` nodes (consumed via `memory()`, not
+imported directly) and PHASE-11's `record_decision`/`close_call` routes.
+
+## Phase 08 — LangGraph, MongoDB Checkpointer, and the Readback Interrupt — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-014, US-015, US-016
+**Files Created:** `src/lib/graph/state.ts`, `src/lib/graph/checkpointer.ts`, `src/lib/graph/wrap.ts`,
+`src/lib/graph/nodes.ts`, `src/lib/graph/compile.ts`, `src/lib/graph/index.ts`,
+`scripts/run-graph-local.ts`, `scripts/kill-resume-drill.ts`
+**Files Modified:** None
+**Ports Implemented:** GraphPort at src/lib/graph/index.ts
+**Fakes Used During Build:** RETRIEVAL_MODE=fake, LLM_MODE=fake, EVENTS_MODE=fake, EMBEDDINGS_MODE=fake,
+VOICE_MODE=fake (GRAPH_MODE itself has no fake path for this phase's own code — the checkpointer needs a
+real MongoClient object, though no live connection is required to construct one)
+**Key Decisions:**
+- Confirmed `@langchain/langgraph` 1.4.9 export names against the installed `.d.ts` before writing any
+  node — see agents.md ws/graph gotchas for the full findings (interrupt/Command/Annotation/etc. all
+  match the spec's assumptions; `MongoDBSaver.setup()` returns `Promise<Error[]>`, not void).
+- `client as unknown as ConstructorParameters<typeof MongoDBSaver>[0]["client"]` cast in
+  `checkpointer.ts` to bridge a real mongodb-version mismatch between this project's `mongodb@7.5.0` and
+  `@langchain/langgraph-checkpoint-mongodb@1.4.0`'s nested `mongodb@6.21.0` dependency. See agents.md —
+  this will bite any other phase that constructs anything from that checkpoint package.
+- `readbackGate`'s `derivePending` fallback (no pending readback, no medic timeline yet) uses an empty
+  `utterance` (not a placeholder sentence), so `recordDecisionNode`'s existing empty-utterance skip keeps
+  decision/remediation counts identical across a kill-and-resume cycle on the default fixture — which is
+  exactly what `npm run drill`'s core assertion requires. A non-empty placeholder utterance would have
+  made the drill spuriously record a decision on resume and fail its own consistency check.
+- `recordDecisionNode` writes the raw medic utterance as both `actionChosen` and `rationale` (no LLM
+  split) rather than fabricating separate values in a shape the spec never actually locks in — see the
+  new Open Items bullet in agents.md for the cross-phase question this raises for PHASE-11.
+- `postmortemNode` emits its own `kind: "pcr"` event (with the ePCR draft's preview) in addition to the
+  one PHASE-09's `generateAndWrite` already emits (with the narrative's preview) — both phase specs
+  explicitly ask for this independently; kept both rather than second-guessing either spec.
+**Issues Found & Fixed:**
+- The mongodb version-mismatch type error above — fixed with the documented cast, not by touching
+  `package.json` (PHASE-01-owned).
+- `tsx -e "<multiline>"` silently no-ops in this shell — switched to real `.ts` files for every
+  verification step beyond a one-liner.
+**Contract Changes:** None.
+**Verification Results:**
+- `npm run typecheck`: 0 errors across the whole repo.
+- `rg MemorySaver` (repo-wide, excluding node_modules/.ralph): zero hits.
+- `rg _groundTruth src/lib/graph`: zero hits. No file in this phase's ownership imports
+  `@/lib/memory/*` or `@/lib/retrieval/*` directly (only via `registry`).
+- `triage`/`signatureMatchNode`/`brief`/`plan` exercised directly (not through the compiled graph, which
+  needs a live checkpointer) with `RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake`: brief ≤55 words,
+  contains "new signature, no prior history" when unmatched, no raw dispatch code after the code-filter
+  post-pass; `plan.excludedPaths` non-empty for a SICK/general fixture incident against
+  `fixtures/hits.json` (the phase's own stated parallel-safe criterion); no dose pattern survives the
+  steps filter.
+- **Unverified (no MONGODB_URI in this environment, and this phase's own scope explicitly excludes
+  building a smoke harness — that's PHASE-16):** `MongoDBSaver.setup()` against a real cluster, a full
+  `graph:local --auto-confirm` run through the compiled StateGraph, `npm run drill`'s actual
+  kill-and-spawn-child-process cycle, `checkpoints`/`checkpoint_writes` becoming non-empty, the
+  `readback_gate`/`await_input` interrupt round-trip through real LangGraph state persistence.
+**Next:** Unblocks PHASE-11 (tool routes call `graph()` from the registry) and PHASE-16 (smoke calls
+`npm run drill`, must not reimplement it). First person with a reachable Atlas cluster: run
+`npm run drill`, `npm run graph:local -- --auto-confirm --print-state`, and `npm run verify:retrieval`
+before trusting any of PHASE-07/08/09 on stage — none of the Atlas-dependent paths have executed yet.
