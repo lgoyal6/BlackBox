@@ -1,6 +1,9 @@
 import type { ReactElement } from "react";
+import { loadLiveCorpus } from "./api/corpus/_lib/load-bundle";
 import { Dashboard, type TabId } from "@/components/dashboard";
 import { loadIncidentBundle } from "@/components/incident-source";
+
+export const dynamic = "force-dynamic";
 
 /**
  * Next.js 16 makes searchParams a Promise. Reading it synchronously is the first thing
@@ -31,13 +34,16 @@ export default async function Page({
           : "real";
 
   const initialTab: TabId = params.tab === "corpus" ? "corpus" : "live";
+  const snapshot = loadIncidentBundle();
+  const live = mode === "real" ? await loadLiveCorpus() : snapshot;
+  const bundle = live.error === null && live.incidents.length > 0 ? live : snapshot;
 
   return (
     <Dashboard
-      incidentId={params.incidentId ?? null}
+      incidentId={params.incidentId ?? bundle.liveIncidentId}
       mode={mode}
       replay={params.replay === "1"}
-      bundle={loadIncidentBundle()}
+      bundle={bundle}
       initialTab={initialTab}
     />
   );

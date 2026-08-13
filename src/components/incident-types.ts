@@ -18,7 +18,10 @@ export interface IncidentSummary {
   unit: string | null;
   family: CallTypeFamily;
   responseSeconds: number | null;
-  /** Negative means the severity was upgraded after arrival — an undertriage. */
+  /**
+   * `initialSeverity - finalSeverity` as stored on the incident.
+   * Positive means the call was upgraded after arrival (undertriaged).
+   */
   severityDelta: number | null;
   reopened: boolean;
   /** The final call type differed from dispatch. This is the labelled triage error. */
@@ -52,6 +55,12 @@ export interface CorpusStats {
   runbookSections: number;
 }
 
+export interface EmbeddingInfo {
+  provider: string;
+  model: string;
+  dim: number;
+}
+
 export interface IncidentBundle {
   incidents: IncidentSummary[];
   /** Keyed by incidentId. */
@@ -61,6 +70,10 @@ export interface IncidentBundle {
   stats: CorpusStats;
   /** Non-null when the corpus could not be loaded; the tab renders this instead. */
   error: string | null;
+  source: "live" | "snapshot";
+  /** Newest `isLive: true` incident, if any. Drives the live-call tab when the URL has no id. */
+  liveIncidentId: string | null;
+  embedding: EmbeddingInfo | null;
 }
 
 export const EMPTY_BUNDLE: IncidentBundle = {
@@ -76,4 +89,7 @@ export const EMPTY_BUNDLE: IncidentBundle = {
     runbookSections: 0,
   },
   error: null,
+  source: "snapshot",
+  liveIncidentId: null,
+  embedding: null,
 };

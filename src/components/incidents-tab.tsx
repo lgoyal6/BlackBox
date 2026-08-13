@@ -74,7 +74,7 @@ function IncidentRow({
         {DOT}
         {incident.dispatchArea}
         {incident.unit !== null ? `${DOT}unit ${incident.unit}` : ""}
-        {incident.severityDelta !== null && incident.severityDelta < 0
+        {incident.severityDelta !== null && incident.severityDelta > 0
           ? `${DOT}upgraded on arrival`
           : ""}
         {incident.hasReport ? `${DOT}report` : ""}
@@ -232,6 +232,9 @@ export function IncidentsTab({ bundle }: { bundle: IncidentBundle }): ReactEleme
       {/* Said plainly, because a judge doing the division would otherwise read 89% as the
           city-wide rate. The slice is deliberately weighted toward mismatches. */}
       <p className="shrink-0 text-sm text-bb-muted">
+        {bundle.source === "live"
+          ? `Live from Atlas${bundle.embedding !== null ? ` · ${bundle.embedding.model}` : ""}. `
+          : "Snapshot of the Atlas corpus. "}
         This slice is deliberately weighted toward reclassified calls so retrieval has
         something to find. The city-wide rate is 15.0% across 5,653,498 incidents.
       </p>

@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import type { Hit } from "@/lib/contracts";
 import { formatScore, hitTitle, snippetLabel } from "./format";
+import type { EmbeddingInfo } from "./incident-types";
 import { Card, EmptyLine } from "./ui";
 import type { RetrievalView } from "./view-state";
 
@@ -32,12 +33,21 @@ export function RetrievedSnippet({ hit }: { hit: Hit }): ReactElement {
 
 export function VectorSearchCard({
   retrieval,
+  embedding,
 }: {
   retrieval: RetrievalView | null;
+  embedding: EmbeddingInfo | null;
 }): ReactElement {
+  const aside =
+    embedding !== null ? (
+      <span className="bb-tabular shrink-0 font-mono text-sm text-bb-muted">
+        {embedding.provider} · {embedding.dim}d
+      </span>
+    ) : undefined;
+
   if (retrieval === null || retrieval.hits.length === 0) {
     return (
-      <Card title="Atlas vector search">
+      <Card title="Atlas vector search" aside={aside}>
         <EmptyLine>No retrieval yet</EmptyLine>
       </Card>
     );

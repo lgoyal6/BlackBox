@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { BlackboxEvent } from "@/lib/contracts";
 import { createFixturePlayer, loadFixtureEvents } from "./fixture-source";
+import type { EmbeddingInfo } from "./incident-types";
 import { EMPTY_VIEW, parseEvent, reduceAll, reduceEvent, type DashboardView } from "./view-state";
 
 export type ConnectionState = "idle" | "fixture" | "connecting" | "open" | "reconnecting";
@@ -16,6 +17,7 @@ export interface EventStreamResult {
   connection: ConnectionState;
   reconnectAttempts: number;
   lastEventAtMs: number | null;
+  embedding: EmbeddingInfo | null;
 }
 
 /** 1s, 2s, 4s, 8s, then a jittered 10s ceiling. Never gives up. */
@@ -65,6 +67,17 @@ function bootstrapEvents(payload: unknown): BlackboxEvent[] {
   return out;
 }
 
+function parseEmbedding(payload: unknown): EmbeddingInfo | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const embedding = (payload as Record<string, unknown>).embedding;
+  if (typeof embedding !== "object" || embedding === null) return null;
+  const o = embedding as Record<string, unknown>;
+  if (typeof o.provider !== "string" || typeof o.model !== "string" || typeof o.dim !== "number") {
+    return null;
+  }
+  return { provider: o.provider, model: o.model, dim: o.dim };
+}
+
 export function useEventStream(o: EventStreamOptions): EventStreamResult {
   const { incidentId, mode, replay } = o;
 
@@ -79,6 +92,7 @@ export function useEventStream(o: EventStreamOptions): EventStreamResult {
   );
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [lastEventAtMs, setLastEventAtMs] = useState<number | null>(null);
+  const [embedding, setEmbedding] = useState<EmbeddingInfo | null>(null);
 
   // Read inside the reconnect handler without making it a dependency.
   const gapCountRef = useRef(view.gapCount);
@@ -118,6 +132,8 @@ export function useEventStream(o: EventStreamOptions): EventStreamResult {
         if (!res.ok) return;
         const body: unknown = await res.json();
         if (cancelled) return;
+        const info = parseEmbedding(body);
+        if (info !== null) setEmbedding(info);
         for (const e of bootstrapEvents(body)) dispatch(e);
       } catch {
         // The stream is the primary source; a missing bootstrap is not fatal.
@@ -183,7 +199,7 @@ export function useEventStream(o: EventStreamOptions): EventStreamResult {
     };
   }, [mode, incidentId]);
 
-  return { view, connection, reconnectAttempts, lastEventAtMs };
+  return { view, connection, reconnectAttempts, lastEventAtMs, embedding };
 }
 
 function safeJson(data: unknown): unknown {
