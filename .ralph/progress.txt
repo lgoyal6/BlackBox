@@ -16,11 +16,11 @@ the `*_MODE` env vars of ports you consume to `fake` while building.
 
 ## Phase Status Overview
 
-- PHASE-01 (Contracts, Scaffold, Ports, and Fakes): COMPLETE  ← typecheck/build green; live Atlas check still needs MONGODB_URI
-- PHASE-02 (Collections, Validators, and Vector Indexes): IMPLEMENTED — live Atlas run blocked (no MONGODB_URI)
+- PHASE-01 (Contracts, Scaffold, Ports, and Fakes): COMPLETE
+- PHASE-02 (Collections, Validators, and Vector Indexes): IMPLEMENTED — 3/4 `vs_*` READY on M0; `vs_postmortems` blocked until Flex
 - PHASE-03 (Embeddings Provider): COMPLETE
 - PHASE-04 (NYC Dispatch Ingestion and the Pitch Number): COMPLETE
-- PHASE-05 (NASEMSO Runbook Corpus): COMPLETE
+- PHASE-05 (NASEMSO Runbook Corpus): COMPLETE — 183 real Voyage docs on Atlas; `vs_runbooks` READY
 - PHASE-06 (Seeded Memory): COMPLETE — 40 seeded + 3 curated on Atlas; decisions=0
 - PHASE-07 (Three-Collection Fan-Out Retrieval): PENDING
 - PHASE-08 (LangGraph, MongoDB Checkpointer, Readback Interrupt): PENDING
@@ -142,8 +142,27 @@ Known Gotchas as well. That file is the only way parallel agents learn from each
 - `npx tsx scripts/ingest-runbooks.ts --dry-run` twice: 183 chunks both times, PDF/pages cache reused
 - Unfiltered 506 chunks (sanity gate 50–3000); filtered 183; min 49 / median 1358 / max 1597; 0 over budget; 100% path-length-2; 100% clean openings by ingest regex
 - Field Triage kept; no reference-path leak; `assertChunkCountSane` throws on 12 and 5000
-- Atlas write not run here: no `MONGODB_URI` in the environment. Re-run `EMBEDDINGS_MODE=fake npm run ingest:runbooks` once URI is set. Those documents will be fake-embedded and must be re-ingested with `real` before PHASE-07 judges retrieval.
-**Next:** PHASE-07 can read the corpus shape from `data/nasemso-chunks.json` now; do not trust retrieval quality until a `real` embed pass.
+- Atlas write not run in the first pass (no URI then). Live real-embed recorded in the addendum below.
+**Next:** PHASE-07 can judge runbook retrieval against the live corpus. Postmortem `$vectorSearch` still needs Flex for `vs_postmortems`.
+
+## Phase 05 — live Atlas real-embed — COMPLETE
+**Date:** 2026-08-13
+**Tasks:** US-009
+**Files Created:** None
+**Files Modified:** `.ralph/progress.txt`, `.ralph/agents.md`, `.ralph/specs/phase-05-runbook-corpus.md`, `README.md`
+**Ports Implemented:** None
+**Fakes Used During Build:** `EMBEDDINGS_MODE=real` only (do not flip the rest until PHASE-16)
+**Key Decisions:**
+- Wrote the corpus with real Voyage `document` embeddings on the first URI+key day, skipping a fake write that PHASE-07 would have to throw away.
+- Did not take M0 Plan B. `vs_runbooks` is READY; `vs_postmortems` waits on Flex.
+**Issues Found & Fixed:**
+- `npm run indexes` failed on `collMod` for existing `decisions` (already in agents.md) and on the fourth vector index (M0 cap). Three indexes still reached READY: `vs_decisions`, `vs_remediations`, `vs_runbooks`.
+- Unpaid Voyage is 3 RPM / 10K TPM. `WRITE_BATCH=200` sent 183 texts in one embed call, 429'd after `deleteMany`, and left `runbooks` empty of `NASEMSO-2022-v3`. Recovered with 8-text batches and a 22s gap. Recorded in `agents.md`.
+**Contract Changes:** None
+**Verification Results:**
+- 183 documents, `source=NASEMSO-2022-v3`, `embedding.length=1024`, empty `embeddedText=0`, duplicate `(sectionTitle, chunkIndex)=0`
+- `vs_runbooks` status READY, queryable, 1024 dimensions
+**Next:** PHASE-07 can retrieve runbooks now. Do not re-ingest unless the chunker changes. Add a Voyage payment method before any other large embed; upgrade Atlas to Flex before seeding needs `vs_postmortems`.
 
 ---
 

@@ -1,6 +1,6 @@
 # Phase 02 — Collections, Validators, and Vector Indexes
 
-**Status:** CODE COMPLETE — live Atlas run blocked on MONGODB_URI
+**Status:** CODE COMPLETE — live M0: 3/4 `vs_*` READY; `vs_postmortems` blocked until Flex
 **Tasks:** US-004, US-005
 **Depends on:** PHASE-01 only (contracts + fakes)
 **Budget:** 25 min

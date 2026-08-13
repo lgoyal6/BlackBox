@@ -363,4 +363,4 @@ Read the sampled chunks. If any begins mid-sentence, the fallback ladder is drop
 
 ## Handoff Note
 
-Announce the chunk count, the whole-guideline share, and whether the corpus was embedded with `fake` or `real`. PHASE-07 cannot judge retrieval quality against a fake-embedded corpus, and that is the single most likely reason for somebody to spend twenty minutes concluding the fan-out pipeline is broken when it is fine.
+**Live Atlas (2026-08-13):** 183 chunks, 100% whole-guideline, **real** Voyage `document` embeddings (`voyage-3-large`, dim 1024). `source=NASEMSO-2022-v3`, no empty `embeddedText`, no duplicate `(sectionTitle, chunkIndex)`. `vs_runbooks` is READY and queryable. PHASE-07 can judge runbook retrieval against this corpus. Do not re-ingest unless the chunker changes. `vs_postmortems` is still missing (M0 cap) — postmortem search waits on Flex.
