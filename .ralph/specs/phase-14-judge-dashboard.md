@@ -674,6 +674,8 @@ With the API available (PHASE-10 and PHASE-11 landed):
 
 ## Verification
 
+Commands below use the POSIX `VAR=value command` prefix, matching the house style in `phase-01`. This repo is developed on Windows, where PowerShell does not support that prefix — use `$env:NEXT_PUBLIC_EVENTS_MODE="fixture"; npm run build` instead, and remember that the variable persists for the rest of the session, so clear it with `$env:NEXT_PUBLIC_EVENTS_MODE=$null` before testing real mode. A stale `fixture` value left in the shell is an easy hour to lose wondering why live events never arrive.
+
 ### Static, no backend
 
 ```bash

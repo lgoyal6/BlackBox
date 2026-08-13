@@ -40,7 +40,7 @@ This phase writes three artifacts under gitignored `data/`, all prefixed `nasems
 Build and verify everything with:
 
 ```
-EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
+EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
 ```
 
 `EMBEDDINGS_MODE=fake` is what makes this phase genuinely independent of PHASE-03. The fake returns a deterministic unit vector of exactly `env.embeddingDim` floats with no network call and no API key, so the download, the extraction, the chunker, the sanity gate, and the write path are all fully verifiable before an embeddings provider exists. That is also the cheap way to iterate: the chunker will get rewritten three or four times, and re-embedding several hundred chunks on each attempt is wasted API spend and wasted minutes. Switch to `EMBEDDINGS_MODE=real` once, at the end, when the chunk statistics look right.

@@ -40,7 +40,7 @@ None at runtime. This phase talks only to `@/lib/db/client` and `@/lib/env`.
 That said, run every command in this spec with all port modes forced to `fake`:
 
 ```
-EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
+EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
 ```
 
 `EMBEDDINGS_MODE=fake` matters for the smoke test in Verification. The fake embeddings provider returns a deterministic unit vector of exactly `env.embeddingDim` floats with zero network calls, which is precisely what a `$vectorSearch` needs to prove an index is live. That means this phase's most important acceptance criterion — a real vector query returning a real hit — is verifiable before PHASE-03 exists.

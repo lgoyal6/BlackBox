@@ -61,7 +61,7 @@ None, and that is worth stating precisely because it is surprising: **`IncidentD
 Run every command in this spec with all port modes forced to `fake`, so no real module is ever loaded and this phase provably cannot be blocked by another:
 
 ```
-EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
+EMBEDDINGS_MODE=fake RETRIEVAL_MODE=fake MEMORY_MODE=fake LLM_MODE=fake EVENTS_MODE=fake GRAPH_MODE=fake VOICE_MODE=fake
 ```
 
 Two real external dependencies remain: Socrata, which needs no auth, and Mongo. **This phase must work whether or not PHASE-02 has run.** Idempotency comes from the upsert filter on `incidentId`, never from PHASE-02's unique index, and this phase creates no indexes. Verify that against a fresh database.
@@ -163,6 +163,8 @@ export async function computeReclassPriors(opts?: { topN?: number; minSampleSize
 | `incident_response_seconds_qy` | `_groundTruth.incidentResponseSeconds` | `number \| null` | Same. |
 | `incident_travel_tm_seconds_qy` | `_groundTruth.incidentTravelSeconds` | `number \| null` | Same. |
 | — | `createdAt`, `updatedAt` | `Date` | `opts.now ?? new Date()`, so tests are deterministic. |
+
+`GroundTruth.incidentTotalSeconds` is optional and derived rather than fetched. **PHASE-06 owns its formula** because it also computes the family medians that formula is compared against, so leave it unset here — two phases deriving the same number from the same inputs with slightly different fallback rules is how `costMinutes` ends up wrong by an average travel time with nothing looking broken.
 
 Every other key on the row is dropped — the `first_*_datetime` fields, the two `valid_*_indc` flags, `held_indicator`, `special_event_indicator`, `standby_indicator`, `transfer_indicator`, and the five district and precinct fields. None appear in `IncidentDoc`, and storing extras invites a later reader to treat one as agent-visible.
 
