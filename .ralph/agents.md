@@ -84,7 +84,7 @@
 - **An agent that sounds right but never called a tool.** Indistinguishable from a working system until a judge asks what happens when the database is empty, and it is exactly the "TTS layer reading pre-generated text" that the Agentic Depth criterion filters out. Verify tool invocations in the server log, not just that speech happened.
 - **A port silently resolving to a fake.** The registry logs `FAKE PORT`; the preflight greps for it and fails. At hour seven somebody will otherwise demo something that ran entirely on fakes.
 - **A fabricated rationale.** Worse than no rationale: it puts a made-up justification in a permanent clinical record, which is the exact harm this project claims to prevent. Return `null` and let the agent ask.
-- **Deleting the seed corpus before the pitch.** `/api/demo/reset` filters must be narrow and explicit. Re-embedding a few hundred narratives twenty minutes before going on stage is a self-inflicted wound.
+- **Never download the NYC bulk CSV.** Atlas holds ~180 incident documents. City-wide statistics are four Socrata `COUNT` queries cached to `data/pitch-numbers.json`. The CSV is gigabytes and will eat the afternoon.
 
 ## Technical Decisions Log
 
@@ -103,6 +103,9 @@
 | 2026-08-13 | **Curated postmortems capped at 2–3 and explicitly labeled `origin: "curated"`** | The diversion detail the agent quotes has no source field in the dataset, so it is synthetic. Attaching it to a real incident with real response times and a derived cost keeps it honest; keeping the count tiny keeps retrieval real rather than theater. Say which is which if asked. |
 | 2026-08-13 | Curated code-label map instead of parsing the dataset's xlsx attachment | Parsing it needs a new dependency and reverse-engineering the sheet layout — roughly 15 minutes for codes the demo will never speak. Download the xlsx only if an unknown code appears in the slices. |
 | 2026-08-13 | Browser WebRTC as the primary voice transport, Twilio outbound timeboxed to 30 min | An actual ringing phone is worth real points because the pitch claims the system calls the medic, but it is an upgrade and not a dependency. Native audio bindings are excluded outright — no time to debug native modules today. |
+| 2026-08-13 | **Demo slice, not the 30M-row dataset.** ~180 incidents, 40 templated postmortems, NASEMSO chapters relevant to the two calls | A hackathon demo needs retrieval to look real, not a warehouse. The 15.0% pitch number still comes from four Socrata COUNT aggregates — one number each, never a row download. Never hit the bulk CSV. Constants in contracts.md §14. |
+| 2026-08-13 | **`--templated` is the default** for seed narratives; LLM is opt-in | Forty deterministic templates still retrieve. Four hundred LLM calls eat the phase budget. |
+| 2026-08-13 | **PHASE-16 is a serial fake-to-real cutover** after the parallel wave | Every other phase verifies against fakes. Without an owned cutover, the pitch can silently run on fixtures. |
 
 ## Open Items
 

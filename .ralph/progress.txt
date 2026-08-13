@@ -7,10 +7,10 @@ Read `.ralph/overview.md` then `.ralph/contracts.md` before starting any phase.
 
 ## Execution Model
 
-PHASE-01 is the only prerequisite. The moment `npm run typecheck` passes in PHASE-01, all fourteen
-remaining phases can be started simultaneously by different agents. Own only your phase's files
-(see the ownership table in overview.md) and set the `*_MODE` env vars of the ports you consume to
-`fake` so your phase verifies without waiting on anyone.
+PHASE-01 is the only prerequisite for phases 02–15. The moment `npm run typecheck` passes in
+PHASE-01, those fourteen phases can start simultaneously. PHASE-16 is serial after that wave:
+flip every port from fake to real and run the smoke path. Own only your phase's files and set
+the `*_MODE` env vars of ports you consume to `fake` while building.
 
 ---
 
@@ -31,6 +31,7 @@ remaining phases can be started simultaneously by different agents. Own only you
 - PHASE-13 (ElevenLabs Voice Layer): PENDING
 - PHASE-14 (Judge-Facing Dashboard): PENDING
 - PHASE-15 (Demo Orchestration and Rehearsal): PENDING
+- PHASE-16 (Fake-to-Real Cutover and End-to-End Smoke): PENDING  ← serial, after 02–15
 
 ---
 
