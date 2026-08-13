@@ -25,14 +25,43 @@ const TABS: readonly { id: TabId; label: string }[] = [
 
 const CORPUS_POLL_MS = 12_000;
 
-function statusLabel(
-  mode: "real" | "fixture",
-  connection: string,
-  provider: string | null,
-): string {
-  if (mode === "fixture") return "fixture";
-  const live = connection === "open" ? "Atlas live" : connection;
-  return provider !== null ? `${live} · ${provider}` : live;
+/**
+ * "Atlas live · voyage" is the single strongest credibility claim on the screen — every number
+ * here arrived over a change stream, embedded by a MongoDB-owned model. Rendered as 14px muted
+ * text it read as a debug string; a judge scanning the frame has to be able to find it. The
+ * dot carries the state so the text stays short enough to read from the back of the room.
+ */
+function StatusPill({
+  mode,
+  connection,
+  provider,
+}: {
+  mode: "real" | "fixture";
+  connection: string;
+  provider: string | null;
+}): ReactElement {
+  const fixture = mode === "fixture";
+  const open = !fixture && connection === "open";
+
+  const label = fixture
+    ? "fixture"
+    : open
+      ? provider !== null
+        ? `Atlas live · ${provider}`
+        : "Atlas live"
+      : connection;
+
+  const dot = fixture ? "bg-bb-muted" : open ? "bg-bb-live" : "bg-bb-amber";
+  const text = fixture ? "text-bb-muted" : open ? "text-bb-text" : "text-bb-muted-bright";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-[6px] rounded-full border border-bb-border-strong bg-bb-surface px-[10px] py-[3px] font-mono text-sm ${text}`}
+    >
+      <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+      {label}
+    </span>
+  );
 }
 
 // The boundary is transitive, so only this file needs "use client". It also owns the one
@@ -97,9 +126,7 @@ export function Dashboard({
           <span className="text-base font-semibold tracking-[0.18em] text-bb-text">
             BLACKBOX
           </span>
-          <span className="text-sm text-bb-muted">
-            {statusLabel(mode, connection, provider)}
-          </span>
+          <StatusPill mode={mode} connection={connection} provider={provider} />
         </div>
 
         <div className="flex items-center gap-2">

@@ -62,10 +62,14 @@ export function CallPanel({
   const who = lastVoice === null ? null : lastVoice.speaker === "agent" ? "AGENT" : "MEDIC";
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="flex h-full max-h-[620px] w-full max-w-[320px] flex-col rounded-[36px] border-[3px] border-bb-border-strong bg-bb-surface px-6 pb-8 pt-5">
+    // Height is viewport-proportional rather than h-full. Claiming the whole column is what
+    // pushed the write counters off screen below ~1000px tall. 230px is the floor at which
+    // the phone's own internals stop clipping; 26vh keeps retrieval and the counters on
+    // screen together at 1440x900, which is the mirrored-laptop size the demo runs on.
+    <div className="flex h-[clamp(230px,26vh,340px)] w-full shrink-0 items-center justify-center">
+      <div className="flex h-full w-full max-w-[300px] flex-col rounded-[36px] border-[3px] border-bb-border-strong bg-bb-surface px-6 pb-5 pt-4">
         <div
-          className="mx-auto mb-8 h-[5px] w-14 shrink-0 rounded-full bg-bb-border-strong"
+          className="mx-auto mb-4 h-[5px] w-14 shrink-0 rounded-full bg-bb-border-strong"
           aria-hidden="true"
         />
 
@@ -79,8 +83,8 @@ export function CallPanel({
           <p className="mt-1 text-sm text-bb-muted">{callState}</p>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-10">
-          <p className="bb-tabular font-mono text-[34px] font-medium text-bb-text">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+          <p className="bb-tabular font-mono text-[clamp(28px,3.6vh,38px)] font-medium leading-none text-bb-text">
             {elapsed === null ? (
               "-- : --"
             ) : (
@@ -92,7 +96,7 @@ export function CallPanel({
             )}
           </p>
 
-          <div className="flex min-h-[48px] flex-col items-center">
+          <div className="flex min-h-[40px] flex-col items-center">
             {who === null ? (
               <p className="text-sm text-bb-muted">no turns yet</p>
             ) : (

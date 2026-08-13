@@ -7,6 +7,7 @@ import type {
   IncidentSummary,
 } from "./incident-types";
 import { Card, EmptyLine } from "./ui";
+import { useScrollFade } from "./use-scroll-fade";
 
 /**
  * The corpus tab: what BlackBox has already seen, and what it recorded about it.
@@ -83,6 +84,24 @@ function IncidentRow({
   );
 }
 
+type GroupedRemediation = IncidentRemediation & { count: number };
+
+/**
+ * Two remediations that are identical in every displayed field render as two identical rows,
+ * which reads as a rendering bug rather than as two recorded attempts. Collapse them and say
+ * how many there were — the count is the honest version of the same fact.
+ */
+function groupRemediations(remediations: IncidentRemediation[]): GroupedRemediation[] {
+  const groups = new Map<string, GroupedRemediation>();
+  for (const r of remediations) {
+    const key = `${r.action}|${r.outcome}|${r.sideEffects.join(",")}|${r.costMinutes ?? ""}`;
+    const existing = groups.get(key);
+    if (existing) existing.count += 1;
+    else groups.set(key, { ...r, count: 1 });
+  }
+  return [...groups.values()];
+}
+
 function ReportPanel({
   incident,
   report,
@@ -92,6 +111,8 @@ function ReportPanel({
   report: IncidentReport | undefined;
   remediations: IncidentRemediation[];
 }): ReactElement {
+  const grouped = groupRemediations(remediations);
+
   return (
     <div className="space-y-4">
       <div>
@@ -153,17 +174,20 @@ function ReportPanel({
           <EmptyLine>No remediations recorded for this incident.</EmptyLine>
         ) : (
           <div className="space-y-2">
-            {remediations.map((r, i) => (
+            {grouped.map((r, i) => (
               <div
-                key={`${r.action}-${i}`}
+                key={`${r.action}-${r.outcome}-${i}`}
                 className="rounded-lg border border-bb-border bg-bb-surface-2 px-3 py-2"
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-[15px] font-medium text-bb-text">{r.action}</span>
-                  <span
-                    className={`shrink-0 text-sm font-medium ${r.outcome === "failure" ? "text-bb-red" : "text-bb-muted"}`}
-                  >
-                    {r.outcome}
+                  <span className="flex shrink-0 items-center gap-2">
+                    {r.count > 1 ? (
+                      <span className="bb-tabular text-sm text-bb-muted">x{r.count}</span>
+                    ) : null}
+                    <span className="rounded-full border border-bb-border-strong px-2 py-[1px] text-sm font-medium text-bb-muted-bright">
+                      {r.outcome}
+                    </span>
                   </span>
                 </div>
                 {r.sideEffects.length > 0 ? (
@@ -196,6 +220,7 @@ export function IncidentsTab({ bundle }: { bundle: IncidentBundle }): ReactEleme
   const [selectedId, setSelectedId] = useState<string | null>(
     ordered.length > 0 ? ordered[0].incidentId : null,
   );
+  const { ref: listRef, atEnd: listAtEnd } = useScrollFade<HTMLDivElement>(ordered.length);
   const selected = ordered.find((i) => i.incidentId === selectedId) ?? ordered[0];
 
   if (bundle.error !== null) {
@@ -241,7 +266,11 @@ export function IncidentsTab({ bundle }: { bundle: IncidentBundle }): ReactEleme
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[2fr_3fr]">
         <Card title="Past incidents" className="min-h-0">
-          <div className="bb-scroll -mx-[18px] min-h-0 flex-1 overflow-y-auto">
+          <div
+            ref={listRef}
+            data-at-end={listAtEnd}
+            className="bb-scroll bb-fade-b -mx-4 min-h-0 flex-1 overflow-y-auto"
+          >
             {ordered.map((incident) => (
               <IncidentRow
                 key={incident.incidentId}

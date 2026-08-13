@@ -29,7 +29,15 @@ export function LiveView({ view, nowMs, live, embedding }: LiveViewProps): React
           <VoiceTimeline items={view.timeline} readback={view.readback} />
         </div>
 
-        <div className="bb-scroll flex min-h-0 flex-col gap-3 overflow-y-auto">
+        {/*
+          The right rail does not scroll as a unit any more. It used to, with the phone
+          claiming h-full inside it, which pushed "Writes this call" below the fold at any
+          viewport under roughly 1000px tall — so on a 1440x900 mirrored laptop the write
+          counters, the pixels that prove Atlas is being written to, were simply not on
+          screen. Now the phone takes a viewport-proportional slice, the counters are pinned,
+          and the retrieval card absorbs whatever is left and scrolls inside itself.
+        */}
+        <div className="flex min-h-0 flex-col gap-3">
           <CallPanel
             status={view.header.status}
             startedAtMs={view.header.startedAtMs}
