@@ -1,4 +1,4 @@
-# Preflight — T-minus 20 minutes
+# Preflight - T-minus 20 minutes
 
 Run in this order. One person owns the go/no-go call; see the bottom of this file.
 
@@ -14,7 +14,7 @@ Re-check a single item after a fix with `--only=<id>`, e.g. `npm run preflight -
 ## The eleven checks
 
 These are exactly the eleven entries in `CHECKS` in `scripts/demo-preflight.ts`. **The two
-lists must stay the same length** — if you add a check to the script, add a row here, so
+lists must stay the same length** - if you add a check to the script, add a row here, so
 nothing falls between the two.
 
 | # | id | Automated? | What it asserts | On failure |
@@ -28,8 +28,8 @@ nothing falls between the two.
 | 7 | `pitch-number` | automated | `data/pitch-numbers.json` exists, parses, and carries ~15.0 alongside a ~5,653,498 denominator | `npm run pitch` |
 | 8 | `worker-mode` | automated (WARN only) | `TRIGGER_MODE` is `changestream` or `poll`, and `_watch_state` holds at least one document | See the manual worker-liveness note below |
 | 9 | `fake-ports` | automated | No `*_MODE` env var equals `fake`, no resolver logs `FAKE PORT`, and `NEXT_PUBLIC_EVENTS_MODE` is not `fixture` | Unset the vars; land the missing real modules |
-| 10 | `audio-levels` | **manual** | Cannot be automated — see below | — |
-| 11 | `window-layout` | **manual** | Cannot be automated — see below | — |
+| 10 | `audio-levels` | **manual** | Cannot be automated - see below | - |
+| 11 | `window-layout` | **manual** | Cannot be automated - see below | - |
 
 ### Notes on three of them
 
@@ -43,7 +43,7 @@ and the "watch it fill live" beat is what the MongoDB track submission rests on.
 
 **`pitch-number` reads a file and never the network.** `data/` is gitignored, so the file
 must be regenerated with `npm run pitch` **on the demo machine**. Never make a live network
-call for the pitch number during the demo — conference wifi is the most reliable way to
+call for the pitch number during the demo - conference wifi is the most reliable way to
 lose a pitch, and that number is the first sentence out of the presenter's mouth.
 
 **Record the real runbook count here the first time PHASE-05 completes**, so subsequent runs
@@ -57,11 +57,11 @@ until the ingestion has actually run.
 
 **10. `audio-levels`.** Phone volume, laptop output, microphone gain. Run a ten-second
 two-way test **using the actual first medic line from the run of show**, not a
-count-to-three — the real line is what reveals whether barge-in cuts the agent off cleanly.
+count-to-three - the real line is what reveals whether barge-in cuts the agent off cleanly.
 
 **11. `window-layout`.** Two browser windows positioned side by side, sized so that nothing
 needs alt-tabbing. Window A is the dashboard at `/?incidentId=<id>`; window B is the voice
-page. **Alt-tabbing on stage is the single most common stumble** — the audience briefly
+page. **Alt-tabbing on stage is the single most common stumble** - the audience briefly
 sees a desktop and the whole thing stops looking like a product.
 
 ## Additional stage hygiene
@@ -70,7 +70,7 @@ These are **not** in `CHECKS` and deliberately do not count toward the eleven. T
 stage logistics, not system state.
 
 - [ ] **Worker liveness.** Look at the worker terminal and confirm it printed its trigger
-      mode. Check 8 can only warn — the contract gives `_watch_state` no update cadence, so
+      mode. Check 8 can only warn - the contract gives `_watch_state` no update cadence, so
       a script cannot honestly assert the worker is alive.
 - [ ] **Tunnel URL written on paper.** Tunnels rotate and the URL is unmemorable.
 - [ ] **Phone on Do Not Disturb**, except for the demo number.
@@ -92,4 +92,4 @@ judges the backend is not live and that they are looking at a recorded run, and 
 same three minutes. That is a recoverable outcome.
 
 Improvising a live run that fails on stage is not. Do not attempt it because a fix "should
-only take a minute" — at T-minus 20 it never does.
+only take a minute" - at T-minus 20 it never does.
