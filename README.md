@@ -117,7 +117,7 @@ Trigger (change stream on incidents)
   → Signature Match      (vector search: have we seen this pattern before?)
   → Brief                (voice out)
   → Plan                 (retrieves failure memory to EXCLUDE known-bad paths)
-  → Readback Gate        (interrupt() — human confirms verbatim)
+  → Readback Gate        (interrupt() - human confirms verbatim)
   → Execute / Record
   → Verify
   → Record Decision
@@ -151,7 +151,7 @@ app/
   api/
     tools/[tool]/      # ElevenLabs server tools: recall_memory, get_protocol, log_timeline,
                         #   propose_readback, confirm_readback, record_decision, close_call
-    demo/               # fire / close / reset — drives the scripted demo
+    demo/               # fire / close / reset - drives the scripted demo
     events/             # SSE route, backed by a change stream on `events`
     state/[incidentId]/ # LangGraph state snapshot for the dashboard
     voice/              # ElevenLabs signed-url / conversation-token issuance
@@ -179,12 +179,12 @@ src/
 
 worker/                  # long-lived process: change stream (or poll) on `incidents` → fires the graph
 
-scripts/                 # every operational script — see Section 9
+scripts/                 # every operational script - see Section 9
 
 fixtures/                 # deterministic offline data: incidents, hits, postmortems, runbook chunks,
                           #   utterances, and a full recorded event stream for fixture-mode rehearsal
 
-docs/                     # pitch-notes.md, run-of-show.md, preflight.md — see Section 13
+docs/                     # pitch-notes.md, run-of-show.md, preflight.md - see Section 13
 
 .ralph/                   # the full build spec this repo was built against: overview, contracts,
                           #   per-phase specs, and the append-only progress/agents logs
@@ -253,7 +253,7 @@ npm run agent:setup   # creates the ElevenLabs agent + tool wiring, writes ELEVE
 ### Run it
 
 ```bash
-npm run dev       # Next.js app — dashboard at /, voice console at /voice
+npm run dev       # Next.js app - dashboard at /, voice console at /voice
 npm run worker    # separate process: watches `incidents` and fires the graph
 ```
 
