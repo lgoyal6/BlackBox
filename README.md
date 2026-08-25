@@ -190,6 +190,64 @@ docs/                     # preflight.md - see Section 13
                           #   per-phase specs, and the append-only progress/agents logs
 ```
 
+## Two paths into Atlas
+
+Two things write to Atlas during a live call, and they are not the same path. A voice tool call writes on the medic's turn and must return before the next sentence. The LangGraph run writes on its own schedule and spends most of the call parked. They meet at exactly one route: `confirm_readback`.
+
+```mermaid
+flowchart TD
+  SAY["medic speaks a decision and a reason"] --> EL["ElevenLabs agent, WebRTC, barge-in"]
+  EL -->|"POST /api/tools/:tool<br/>shared secret checked before the body is parsed"| T2["record_decision"]
+  T2 --> ACK["200 'Recorded.' returns now<br/>the medic keeps talking"]
+  ACK -.->|"setImmediate, after the response is sent"| EXT["LLM extraction:<br/>actionChosen, rationale, optionsConsidered"]
+  EXT --> V{"is the rationale a contiguous<br/>verbatim span of the utterance?"}
+  V -->|"no"| SKIP["write skipped, nothing stored<br/>a paraphrase is discarded, not repaired"]
+  V -->|"yes"| EMB["embed utterance, action and rationale as one string"]
+  EMB --> INS["insert into decisions<br/>the writer asserts rationale, then a $jsonSchema validator asserts it again"]
+  INS --> EV["insert into events"]
+  EL -->|"same turn"| T1["log_timeline"]
+  T1 --> TLW["push onto incidents.timeline"]
+  TLW --> EV
+  EV --> CS["change stream on events"]
+  CS --> SSE["GET /api/events, SSE"]
+  SSE --> DASH["dashboard"]
+  style V fill:#fde68a,stroke:#b45309,color:#111
+  style EV fill:#bfdbfe,stroke:#1d4ed8,color:#111
+```
+
+The verbatim-span check is the load-bearing branch. The extraction prompt forbids inventing a reason, and a model told not to invent will still paraphrase one into existence; once a paraphrase is in the database it is indistinguishable from an invention. So the writer compares the returned `rationale` against the utterance and drops the whole write when it is not literally in there, rather than repairing it. `decisions` staying empty is a correct outcome, not a bug.
+
+Nothing on this path is allowed to fail the voice turn. `emit()` never rejects, the background write logs `DECISION WRITE FAILED` and returns, and the SSE route drops frames for a slow tab instead of back-pressuring the change stream cursor into the process doing the insert. The SSE route also opens the change stream *before* it runs the replay `find()`; the other order leaves a window in which an event fired a half-second before the dashboard loaded is lost forever.
+
+### Where the graph parks
+
+```mermaid
+flowchart TD
+  W["worker: change stream on incidents<br/>live inserts only, seeded rows start nothing"] --> S["graph.start(incidentId)"]
+  S --> T["triage"]
+  T --> SM["signature_match<br/>fanOut: one aggregation over decisions,<br/>postmortems and runbooks, fused by RRF"]
+  SM --> B["brief"]
+  B --> P["plan<br/>failureMemory: remediations with outcome failure,<br/>postmortems with severityDelta above 0,<br/>retrieved in order to exclude those paths"]
+  P --> RG["readback_gate<br/>interrupt, parked until a human confirms"]
+  RG -->|"confirm_readback is the only route that resumes it"| ER["execute_record"]
+  ER --> VF["verify"]
+  VF --> RDN["record_decision node"]
+  RDN -->|"closeRequested"| PM["postmortem, embed, write, then draft the ePCR"]
+  RDN -->|"otherwise"| AI["await_input<br/>interrupt, parked between medic turns"]
+  AI -->|"closeRequested"| PM
+  AI -->|"next medic turn"| P
+  PM --> E["END"]
+  CP[("checkpoints and checkpoint_writes<br/>in Atlas, via MongoDBSaver")]
+  RG -.->|"state written every step, never in process memory"| CP
+  CP -.->|"kill the process, restart it:<br/>invoke resumes at the parked node"| RG
+  style RG fill:#fde68a,stroke:#b45309,color:#111
+  style CP fill:#bfdbfe,stroke:#1d4ed8,color:#111
+```
+
+The head of the graph runs once; the cycle is `plan` through `await_input` and back, once per medic turn. Both `interrupt()` nodes are where the process spends nearly all of the call, which is what makes the checkpointer choice observable rather than theoretical: with an in-memory saver both parks would still look correct inside one process and the kill-and-resume would fail with no warning.
+
+Two consequences of that cycle are worth knowing before running a demo twice. An interrupted node re-executes from the top on resume, which is why `wrapNode` emits its events only after the node body resolves. And the concat-reducer channels accumulate across repeated `start()` calls on the same `incidentId`, which is why `POST /api/demo/reset` deletes checkpoints between takes.
+
 ## 7. Getting Started
 
 ### Prerequisites
