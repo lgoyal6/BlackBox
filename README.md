@@ -259,8 +259,8 @@ Two consequences of that cycle are worth knowing before running a demo twice. An
 ### Installation
 
 ```bash
-git clone <this-repo>
-cd MongoHack
+git clone https://github.com/lgoyal6/BlackBox.git
+cd BlackBox
 npm install
 cp .env.example .env.local
 ```
