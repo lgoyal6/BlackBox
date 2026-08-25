@@ -76,7 +76,7 @@ Different dispatch codes, different presenting symptoms, same latent pattern. If
 
 ### The stage moment: kill-and-resume
 
-Mid-demo, with the agent parked on a drug-dose confirmation, the presenter kills the Next.js process in front of the audience and restarts it. The agent resumes the exact same call from the exact point it left off. This works because the LangGraph agent's state is checkpointed to Atlas via `MongoDBSaver` on every step - never an in-memory checkpointer. The automated drill lives at `scripts/kill-resume-drill.ts` (`npm run drill`); see [`docs/run-of-show.md`](docs/run-of-show.md) for the human choreography around it.
+Mid-demo, with the agent parked on a drug-dose confirmation, the presenter kills the Next.js process in front of the audience and restarts it. The agent resumes the exact same call from the exact point it left off. This works because the LangGraph agent's state is checkpointed to Atlas via `MongoDBSaver` on every step - never an in-memory checkpointer. The automated drill lives at `scripts/kill-resume-drill.ts` (`npm run drill`).
 
 ## 4. Architecture
 
@@ -184,7 +184,7 @@ scripts/                 # every operational script - see Section 9
 fixtures/                 # deterministic offline data: incidents, hits, postmortems, runbook chunks,
                           #   utterances, and a full recorded event stream for fixture-mode rehearsal
 
-docs/                     # pitch-notes.md, run-of-show.md, preflight.md - see Section 13
+docs/                     # preflight.md - see Section 13
 
 .ralph/                   # the full build spec this repo was built against: overview, contracts,
                           #   per-phase specs, and the append-only progress/agents logs
@@ -271,7 +271,7 @@ npm run worker    # separate process: watches `incidents` and fires the graph
 
 `npm run preflight` runs eleven checks (vector index readiness, `decisions` genuinely empty, the tunnel's shared-secret auth, the pitch-number cache, no port silently on `fake`, and more) and exits non-zero on anything that would sink the pitch. Full detail in [`docs/preflight.md`](docs/preflight.md).
 
-**A NO-GO means running in fixture mode** (`/?mode=fixture`) rather than improvising a live run - a recorded three minutes beats a broken live one. The full second-by-second script, including the kill-and-resume choreography, is in [`docs/run-of-show.md`](docs/run-of-show.md); the words to say out loud are in [`docs/pitch-notes.md`](docs/pitch-notes.md).
+**A NO-GO means running in fixture mode** (`/?mode=fixture`) rather than improvising a live run - a recorded three minutes beats a broken live one.
 
 ## 9. Scripts Reference
 
@@ -322,8 +322,6 @@ Honest state as of the last verification pass against the live cluster:
 
 | Doc | What's in it |
 |---|---|
-| [`docs/pitch-notes.md`](docs/pitch-notes.md) | The actual sentences to say on stage, and why each one is there |
-| [`docs/run-of-show.md`](docs/run-of-show.md) | The three-minute, second-by-second demo script, including the kill-and-resume choreography |
 | [`docs/preflight.md`](docs/preflight.md) | The eleven go/no-go checks run before going on stage |
 | [`.ralph/overview.md`](.ralph/overview.md) | The full project brief: architecture rationale, locked decisions, event context, cut list |
 | [`.ralph/contracts.md`](.ralph/contracts.md) | Every shared type, collection name, document shape, port interface, and API route - verbatim source of truth |
